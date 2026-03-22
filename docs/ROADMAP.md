@@ -1,7 +1,8 @@
-# Transcender / SGA-POC — Execution Roadmap
+# Transcender-MLX / SGA-POC - Execution Roadmap
 
 **Date:** 2026-03-23 | **Status:** Archived working roadmap
 
+> **Repository note:** This archived file is retained in `transcender-mlx`, the MLX implementation repo for the Transcender paper.
 > **Release note:** This file is retained as an execution log, not the current public-release checklist. The GPT-OSS N=15 follow-up, the Qwen3-30B-A3B Track A reproduction, the Track B baseline, and the dense follow-up are complete. Public-release remaining work is editorial consistency and arXiv packaging; none of the proposed experiments below are required before release.
 
 ---
@@ -628,7 +629,7 @@ These three, in this order, before touching anything else:
 ### Step 1 — Confirm the hook works correctly (3 minutes)
 
 ```bash
-cd /Users/junson/Documents/GitHub/sga-poc
+cd <repo-root>
 python -c "
 import torch
 from model_injector import SGAModel

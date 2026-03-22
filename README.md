@@ -1,6 +1,10 @@
-# Transcender
+# Transcender-MLX
 
-**Cross-layer composition control for adaptive transformer inference.**
+**MLX reference implementation and benchmark suite for the Transcender paper.**
+
+`transcender-mlx` is the public Apple MLX implementation repo for the Transcender paper. Transcender remains the method and paper identity; `transcender-mlx` is the repository identity for the MLX reference implementation and release artifacts.
+
+**Transcender: Cross-layer composition control for adaptive transformer inference.**
 
 Transcender is best understood not as a generic early-exit method, but as a cross-layer composition control framework for adaptive transformer inference. The central problem is not early exit — it is how to combine information from different depth levels without corrupting the output distribution.
 

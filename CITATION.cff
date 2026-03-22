@@ -1,11 +1,11 @@
 cff-version: 1.2.0
-message: "If you use this software, please cite it as below."
-title: "Transcender: Cross-Layer Composition Control for Adaptive Transformer Inference"
+message: "If you use this software implementation, please cite it as below."
+title: "transcender-mlx: MLX reference implementation for the Transcender paper"
 type: software
 authors:
   - family-names: "Son"
     given-names: "Beomjune"
-repository-code: "https://github.com/juniverse1103/transcender"
+repository-code: "https://github.com/juniverse1103/transcender-mlx"
 license: MIT
 version: "0.1.0"
 date-released: "2026-03-22"
@@ -17,8 +17,10 @@ keywords:
   - logit blending
   - mixture of experts
 abstract: >-
-  Transcender is a cross-layer composition control framework for adaptive
-  transformer inference. It demonstrates that agreement-aware logit-space
-  blending supports a viable penultimate-layer frontier on the tested sparse
-  MoE families while characterizing the limitations of current approaches on
-  dense architectures.
+  transcender-mlx is the Apple MLX reference implementation and benchmark
+  suite for the Transcender paper. Transcender is a cross-layer composition
+  control framework for adaptive transformer inference. This software
+  demonstrates that agreement-aware logit-space blending supports a viable
+  penultimate-layer frontier on the tested sparse MoE families while
+  characterizing the limitations of current approaches on dense
+  architectures.

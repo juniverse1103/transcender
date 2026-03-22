@@ -1,6 +1,6 @@
 # Reproducibility Guide
 
-Instructions for reproducing the validated results in this repository.
+Instructions for reproducing the validated results in `transcender-mlx`, the MLX reference implementation repo for the Transcender paper.
 
 ---
 
@@ -12,11 +12,11 @@ Instructions for reproducing the validated results in this repository.
 
 ```bash
 # Clone and install
-git clone <repo-url> && cd transcender
+git clone <repo-url> && cd transcender-mlx
 pip install -e ".[mlx]"
 ```
 
-All commands below assume execution from the repository root.
+All commands below assume execution from the `transcender-mlx` repository root.
 
 ---
 

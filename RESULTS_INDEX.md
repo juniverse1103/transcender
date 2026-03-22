@@ -1,6 +1,6 @@
 # Results Index
 
-All measured artifacts in this repository. JSON files are preserved benchmark outputs.
+All measured artifacts in `transcender-mlx`, the MLX benchmark and artifact repo for the Transcender paper. JSON files are preserved benchmark outputs.
 
 ---
 

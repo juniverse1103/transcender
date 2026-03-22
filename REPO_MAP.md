@@ -1,6 +1,6 @@
 # Repository Map
 
-This document explains the top-level structure and classifies every major component by its role in the research.
+This document maps `transcender-mlx`, the Apple MLX reference implementation and benchmark suite for the Transcender paper, and classifies every major component by its role in the research.
 
 ---
 

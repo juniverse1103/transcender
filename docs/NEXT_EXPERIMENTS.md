@@ -2,6 +2,7 @@
 
 **Date:** 2026-03-23 | **Status:** Optional post-release research notes
 
+> **Repository note:** This archival file is retained in `transcender-mlx`, the MLX implementation repo for the Transcender paper.
 > **Release note:** This file is archival. The GPT-OSS N=15 follow-up, the Qwen3 Track A reproduction, and the dense follow-up are complete. None of the ideas below are required for public release or arXiv support, and dense work is not part of the current release-critical path.
 
 ---

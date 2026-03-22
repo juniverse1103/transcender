@@ -1,6 +1,6 @@
 # Paper Status
 
-Status of the paper package as of 2026-03-23.
+Status of the Transcender paper package and the `transcender-mlx` MLX release repo as of 2026-03-23.
 
 ---
 
@@ -10,7 +10,7 @@ Status of the paper package as of 2026-03-23.
 - **Track A:** GPT-OSS 20B N=15 follow-up is complete, and the Qwen3-30B-A3B cross-model sparse-MoE reproduction is complete.
 - **Track B:** The naive Gemma-to-GPT-OSS cascade remains a scoped negative baseline for the tested configuration.
 - **Track C:** The dense follow-up is complete. Compute-both quality recovery is established, but no practical real selective-depth frontier was found on the tested dense families in this runtime.
-- **Repo docs:** Release-facing docs align to the narrow public claim: a viable penultimate-layer selective-exit frontier appears on both tested sparse MoE families; operating-point quality is model-dependent; dense models did not show a practical real selective-depth frontier on this runtime.
+- **Repo docs:** Release-facing docs in `transcender-mlx` align to the narrow public claim: a viable penultimate-layer selective-exit frontier appears on both tested sparse MoE families; operating-point quality is model-dependent; dense models did not show a practical real selective-depth frontier on this runtime.
 - **Markdown whitepapers:** Older markdown narratives are retained, but they are labeled as superseded or historical rather than presented as current evidence.
 - **Bibliography / citation / license:** `paper/references.bib`, `CITATION.cff`, and the MIT license are coherent for public release. The author metadata remains Beomjune Son.
 
@@ -53,4 +53,4 @@ Status of the paper package as of 2026-03-23.
 3. Decide on figure inclusion
 4. Create the arXiv tarball with `main.tex`, `references.bbl`, and any explicitly included figures
 5. Upload to arXiv as the chosen category
-6. Add the public GitHub repository URL to the arXiv comments field after release
+6. Add the public `transcender-mlx` GitHub repository URL to the arXiv comments field after release
