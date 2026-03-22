@@ -1,71 +1,77 @@
 \documentclass[11pt]{article}
 
+\usepackage[margin=1in]{geometry}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\usepackage{microtype}
 \usepackage[hidelinks]{hyperref}
 \usepackage[nameinlink,noabbrev]{cleveref}
 
 \title{Transcender: Cross-Layer Composition Control for Adaptive Transformer Inference}
-\author{Jun Son}
-\date{March 22, 2026}
+\author{Beomjune Son}
+\date{March 2026}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-Transcender is best understood not as a generic early-exit method, but as a cross-layer composition control framework for adaptive transformer inference. The central claim of this repository is that adaptive-depth inference is constrained less by exit-point selection than by whether intermediate-depth and full-depth signals can be combined without corrupting the output distribution. Across three empirical tracks, this framing produces a mixed but coherent result. On GPT-OSS 20B, Track A establishes the canonical practical frontier in the repository: \texttt{L22 top1\_agree} with entropy-gated exit reaches 0.969 exact match against full-depth greedy decoding while physically skipping about 49.5\% of layers. Track B provides a scoped negative comparison baseline: a naive Gemma 3 4B-IT to GPT-OSS 20B cross-model cascade reaches only 0.026 exact match at 0.28 TPS and 20.19 GB peak memory on the local Apple MLX runtime. Track C now includes a denser follow-up beyond Gemma. On Gemma 3 4B-IT, compute-both agreement-aware composition reaches 0.807 exact match at both L31 and L20 versus 0.198 and 0.026 for fixed exit at those layers, while real selective-depth at both checkpoints remains practically weak. Focused late-checkpoint follow-up on Llama 3.1 8B and Mistral 7B reproduces the same benchmark-side pattern: fixed exit remains materially bad, compute-both \texttt{top1\_agree} recovers full-depth output, and real selective-depth still trails the matched full-depth baseline after replay/cache repair. The resulting picture is architecture-dependent: strong practical adaptive depth on the tested MoE model, but only partial methodology transfer and negative dense speed-validation across the tested dense families and local runtime.
+We present Transcender, a cross-layer composition control framework for adaptive transformer inference. The central thesis is that adaptive-depth inference is constrained less by exit-point selection than by whether intermediate-depth and full-depth signals can be combined without corrupting the output distribution. We evaluate this framing across three empirical tracks, producing a mixed but coherent result. On GPT-OSS 20B (Track~A), \texttt{top1\_agree} composition at Layer~22 with entropy-gated exit achieves 0.969 exact match against full-depth greedy decoding while physically skipping approximately 49.5\% of layers. Track~B provides a scoped negative comparison: a naive Gemma~3 4B-IT to GPT-OSS 20B cross-model cascade reaches only 0.026 exact match at 0.28 tokens per second (TPS) on the local Apple MLX runtime. Track~C extends the evaluation to dense architectures. On Gemma~3 4B-IT, compute-both agreement-aware composition recovers 0.807 exact match at both L31 and L20, versus 0.198 and 0.026 for fixed exit at those layers, while real selective-depth remains practically weak. Focused late-checkpoint follow-up on Llama~3.1 8B and Mistral~7B reproduces the same pattern: fixed exit fails materially, compute-both \texttt{top1\_agree} recovers full-depth output, and real selective-depth still trails the matched full-depth baseline. The resulting picture is architecture-dependent: strong practical adaptive depth on the tested MoE model, but only partial methodology transfer to the tested dense families.
 \end{abstract}
 
 \section{Introduction}
 
-Variable-compute inference for transformer language models is commonly framed in one of two ways: early exit within a model, or draft-verifier decoding across models \cite{elbayad2020depthadaptive,leviathan2023speculative}. In both cases, the usual question is when the model has done enough work to emit the next token. That framing is incomplete.
+Variable-compute inference for transformer language models is commonly framed in one of two ways: early exit within a single model~\cite{elbayad2020depthadaptive}, or draft-verifier decoding across models~\cite{leviathan2023speculative}. In both cases, the central question is typically \emph{when} the model has done enough work to emit the next token. We argue that this framing is incomplete.
 
-This repository argues for a different abstraction: the central problem is cross-layer composition control. If an intermediate layer and the final layer disagree, a system needs a principled rule for deciding whether to trust the shallow path, the deep path, or a combination of the two. Without that rule, adaptive-depth inference either collapses into low-quality fixed exit or pays the cost of computing both paths without recovering a practical speed-quality tradeoff.
+The deeper problem is \emph{cross-layer composition control}: when an intermediate layer and the final layer disagree, a system needs a principled rule for deciding whether to trust the shallow path, the deep path, or a combination of the two. Without such a rule, adaptive-depth inference either collapses into low-quality fixed exit or pays the full cost of computing both paths without recovering a practical speed-quality tradeoff.
 
-The evidence in this repository supports that reframing across three tracks. Track A establishes a practical same-model adaptive-depth frontier on GPT-OSS 20B. Track B shows that a naive cross-model cascade can fail badly when tokenizer, distribution, and orchestration costs all work against it. Track C shows both the upside and the limit of the composition-control view on dense models in this local Apple MLX runtime: compute-both agreement-aware composition recovers substantial quality on Gemma 3 4B-IT, Llama 3.1 8B, and Mistral 7B late-checkpoint follow-ups, but real selective-depth implementations still do not beat their matched full-depth baselines.
+We present evidence supporting this reframing across three tracks. Track~A establishes a practical same-model adaptive-depth frontier on GPT-OSS 20B. Track~B demonstrates that a naive cross-model cascade can fail severely when tokenizer mismatch, distribution mismatch, and orchestration overhead compound. Track~C characterizes both the promise and the current limits of composition control on dense models: compute-both agreement-aware composition recovers substantial quality on Gemma~3 4B-IT, Llama~3.1 8B, and Mistral~7B, but real selective-depth implementations do not yet beat their matched full-depth baselines on this runtime.
 
-\section{Distinctive Contributions}
+\section{Contributions}
 
 \begin{enumerate}
-\item \textbf{The Subspace Paradox.} Hidden states from different transformer layers occupy geometrically separated subspaces in the tested models. This makes hidden-state interpolation structurally invalid for cross-layer composition.
-\item \textbf{Agreement-aware logit-space composition.} Logit blending with an explicit agreement gate improves output quality across both the tested MoE and dense architectures.
-\item \textbf{Empirical characterization of the cascade tax.} The repository measures how a naive cross-model cascade can degrade when tokenizer mismatch, distribution mismatch, and orchestration overhead compound.
-\item \textbf{Family-sensitive dense depth profiles.} Gemma 3 4B-IT exhibits a late plateau, while focused recon on Llama 3.1 8B and Mistral 7B shows different plateau zones and resolution entry points. The benchmark-side limitation generalizes more cleanly than Gemma's exact internal profile shape.
-\item \textbf{Real dense selective-depth speed validation.} Continuation-safe selective-depth runtimes were implemented at L31 and L20 on Gemma 3 4B-IT and at late checkpoints on Llama 3.1 8B and Mistral 7B. All physically skipped deep layers on some decode tokens, but none recovered a practical speed-quality frontier on this local Apple MLX runtime.
+\item \textbf{The Subspace Paradox.} We show that hidden states from different transformer layers occupy geometrically separated subspaces, making hidden-state interpolation structurally invalid for cross-layer composition. Measured separation ratios reach 4.11$\times$ on GPT-OSS 20B and 2.46$\times$ on Gemma~3 4B-IT.
+
+\item \textbf{Agreement-aware logit-space composition.} We propose a conservative composition rule that blends logits only when the shallow and deep paths agree on token identity. This outperforms both fixed exit and naive blending across the tested MoE and dense architectures.
+
+\item \textbf{Empirical characterization of the cascade tax.} We measure the compounding cost of tokenizer mismatch, distribution mismatch, and two-model orchestration in a naive cross-model cascade, providing a concrete negative baseline.
+
+\item \textbf{Family-sensitive dense depth profiles.} We observe that KL-divergence depth profiles differ across dense model families: Gemma exhibits a late plateau (L20--L29), Llama a milder middle plateau (L12--L14), and Mistral an earlier plateau (L2--L8). The benchmark-side limitation generalizes more cleanly than the internal profile geometry.
+
+\item \textbf{Real dense selective-depth speed validation.} We implement continuation-safe selective-depth runtimes on three dense model families. All physically skip deep layers on some decode tokens, but none recovers a practical speed-quality frontier on this runtime.
 \end{enumerate}
 
 \section{Method}
 
 \subsection{Cross-Layer Geometric Separation}
 
-Let $h_i$ and $h_j$ denote hidden states from layers $i$ and $j$ with $i < j$. When projected into a shared PCA space, the repository measures cross-layer separation using
+Let $h_i$ and $h_j$ denote hidden states from layers $i$ and $j$ with $i < j$. When projected into a shared PCA space, we measure cross-layer separation using
 \begin{equation}
 \mathrm{SeparationRatio}(i,j) =
 \frac{\lVert c_i - c_j \rVert_2}{\max(\sigma_i,\sigma_j)},
 \label{eq:separation}
 \end{equation}
-where $c_i$ and $c_j$ are cluster centroids and $\sigma_i$, $\sigma_j$ are within-cluster spreads. Ratios of 4.11 on GPT-OSS 20B and 2.46 on Gemma 3 4B-IT indicate that hidden states from different layers are not safely interpolable in the tested settings.
+where $c_i$ and $c_j$ are cluster centroids and $\sigma_i$, $\sigma_j$ are within-cluster standard deviations. Ratios exceeding 2$\times$ indicate that hidden states from different layers are not safely interpolable; we observe 4.11$\times$ on GPT-OSS 20B and 2.46$\times$ on Gemma~3 4B-IT.
 
 \subsection{Agreement-Aware Logit Composition}
 
-Instead of blending hidden states, Transcender projects intermediate and final states into a shared logit space and composes them there. Let $\ell_t^e$ be logits at exit layer $e$ for token step $t$, and let $\ell_t^N$ be logits at full depth $N$. The composition rule is
+Rather than blending hidden states, Transcender projects intermediate and final representations into a shared logit space and composes them there. Let $\ell_t^e$ denote the logits at exit layer $e$ for token step $t$, and $\ell_t^N$ the logits at full depth $N$. The composition rule is
 \begin{equation}
 \ell_t^{\mathrm{out}} =
 \begin{cases}
 (1-\alpha)\,\ell_t^N + \alpha\,\ell_t^e, &
-\arg\max \ell_t^e = \arg\max \ell_t^N, \\
+\text{if } \arg\max \ell_t^e = \arg\max \ell_t^N, \\
 \ell_t^N, & \text{otherwise.}
 \end{cases}
 \label{eq:blend}
 \end{equation}
-This is the \texttt{top1\_agree} rule used throughout the repository. Its purpose is conservative: blend only when shallow and deep paths already agree on token identity, otherwise discard the shallow logits.
+We refer to this as the \texttt{top1\_agree} rule. Its design is conservative: logits are blended only when the shallow and deep paths already agree on token identity; otherwise, the shallow signal is discarded entirely.
 
 \subsection{Selective-Depth Runtime}
 
-The dense selective-depth runtime used in Track C differs from the compute-both composition path. Prompt prefill is always run at full depth so the deep cache is valid at decode start. During autoregressive decode, layers $0 \ldots e$ are run first, a confidence score $s(\ell_t^e)$ is computed, and an early token is accepted only when confidence exceeds a threshold:
+The dense selective-depth runtime used in Track~C differs from the compute-both composition path. Prompt prefill always runs at full depth to ensure deep-cache validity at decode start. During autoregressive decoding, layers $0 \ldots e$ execute first, a confidence score $s(\ell_t^e)$ is computed, and the early token is accepted only when confidence exceeds a threshold:
 \begin{equation}
 a_t = \mathbf{1}[s(\ell_t^e) \ge \tau], \qquad
 \hat{y}_t =
@@ -75,28 +81,28 @@ a_t = \mathbf{1}[s(\ell_t^e) \ge \tau], \qquad
 \end{cases}
 \label{eq:selective}
 \end{equation}
-If later continuation is required after one or more accepted shallow tokens, the previously skipped decode tokens are replayed through the deep layers to restore deep-cache correctness. In the Track C extension, this replay cost is part of the measured runtime and is essential to the interpretation of the result.
+When continuation is required after one or more accepted shallow tokens, the previously skipped tokens are replayed through the deep layers to restore cache correctness. This replay cost is included in all reported runtimes and is essential to the interpretation of the results.
 
 \section{Experimental Setup}
 
-All results were collected on a single Apple M1 Pro system with 32 GB unified memory using the Apple MLX runtime. The prompt family is fixed across the repository: five factual or explanatory prompts on quantum entanglement, the French Revolution, recursion, TCP versus UDP, and photosynthesis. Each prompt generates 48 tokens with greedy decoding. Aggregate metrics exclude the first prompt as warmup in order to reduce distortion from JIT compilation and initial memory allocation.
+All results were collected on a single Apple M1 Pro system with 32~GB unified memory using the Apple MLX runtime. The evaluation uses a fixed prompt suite of five factual and explanatory prompts covering quantum entanglement, the French Revolution, recursion, TCP versus UDP, and photosynthesis. Each prompt generates 48 tokens under greedy decoding. Aggregate metrics exclude the first prompt as warmup to reduce distortion from JIT compilation and initial memory allocation.
 
-The primary quality metric is exact token-sequence match against a full-depth baseline on the same model. Secondary metrics include generation throughput in tokens per second, time to first token, elapsed time, peak memory, and layer-saving statistics where applicable.
+The primary quality metric is exact token-sequence match against a full-depth baseline on the same model. Secondary metrics include generation throughput (tokens per second), time to first token (TTFT), elapsed time, peak memory, and layer-saving statistics where applicable.
 
-The evaluated models are GPT-OSS 20B, a 24-layer Mixture-of-Experts model run in MXFP4 quantization; Gemma 3 4B-IT, a 34-layer dense model in the default MLX configuration \cite{gemma2024report}; and MLX 4bit dense follow-up models from the Llama and Mistral families: Llama 3.1 8B Instruct and Mistral 7B Instruct v0.3. Track B combines Gemma 3 4B-IT and GPT-OSS 20B in a naive cross-model cascade. Track C evaluates Gemma 3 4B-IT in both the original six-mode adaptive benchmark and dedicated selective-depth runtimes, then adds focused late-checkpoint validation on Llama and Mistral.
+The evaluated models are: GPT-OSS 20B, a 24-layer Mixture-of-Experts model in MXFP4 quantization; Gemma~3 4B-IT~\cite{gemma2024report}, a 34-layer dense model; and two MLX 4-bit dense models---Llama~3.1 8B Instruct and Mistral~7B Instruct v0.3. Track~B combines Gemma~3 4B-IT and GPT-OSS 20B in a naive cross-model cascade. Track~C evaluates Gemma~3 4B-IT across six adaptive modes and dedicated selective-depth runtimes, then extends to late-checkpoint validation on Llama and Mistral.
 
 \section{Results}
 
-\subsection{Track A: Canonical Same-Model Adaptive Depth}
+\subsection{Track A: Same-Model Adaptive Depth}
 
 \begin{table}[t]
 \centering
 \small
-\caption{Track A on GPT-OSS 20B.}
+\caption{Track~A results on GPT-OSS 20B. The \texttt{avg\_layers\_saved} column reflects physical entropy-gated layer skipping, not compute-both blending.}
 \label{tab:tracka}
 \begin{tabular}{@{}lccc@{}}
 \toprule
-Configuration & Gen TPS & Exact Match & Avg. Layers Saved \\
+Configuration & Gen TPS & Exact Match & Avg.\ Layers Saved \\
 \midrule
 Full depth (L23) & 31.79 & 1.000 & 0\% \\
 L22 \texttt{top1\_agree} & 27.41 & 0.969 & 49.5\% \\
@@ -105,15 +111,16 @@ L23 \texttt{top1\_agree} & 32.41 & 1.000 & 0\% \\
 \end{tabular}
 \end{table}
 
-Track A is the canonical practical result in the repository. As shown in \cref{tab:tracka}, \texttt{L22 top1\_agree} preserves 0.969 exact match while physically skipping about half of the model's layers on average. This is not a compute-both artifact. The \texttt{avg\_layers\_saved} value reflects real entropy-gated skipping in the MLX runtime.
+Track~A is the primary practical result. As shown in \cref{tab:tracka}, \texttt{top1\_agree} at Layer~22 preserves 0.969 exact match while physically skipping approximately half of the model's layers via entropy-gated exit. This is not a compute-both artifact: the layer savings reflect genuine adaptive compute reduction in the MLX runtime.
 
-\subsection{Track B: Scoped Negative Cascade Baseline}
+\subsection{Track B: Cross-Model Cascade Baseline}
 
 \begin{table}[t]
 \centering
 \small
-\caption{Track B comparison on the local Apple MLX runtime. The Track A row is included only as the comparison point used in this repository.}
+\caption{Track~B comparison on the local Apple MLX runtime. The Track~A row provides context.}
 \label{tab:trackb}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 Mode & Gen TPS & Exact Match & Peak Mem (GB) & TTFT (s) \\
@@ -123,18 +130,20 @@ GPT-OSS full depth & 30.94 & 1.000 & 12.96 & 0.66 \\
 Naive cascade & 0.28 & 0.026 & 20.19 & 11.83 \\
 Track A L22 \texttt{top1\_agree} & 20.22 & 0.969 & 12.96 & 0.98 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-Track B is not a claim about cascade systems in general. It is a negative comparison baseline for this naive implementation, this Gemma 3 4B-IT to GPT-OSS 20B model pair, and this local Apple MLX runtime. In \cref{tab:trackb}, the naive cascade reaches 0.026 exact match at 0.28 TPS and 20.19 GB peak memory. The likely causes are tokenizer mismatch, distribution mismatch, and two-model orchestration overhead. The repository therefore treats Track B as evidence about the cascade tax in this specific setup, not as a universal statement against speculative decoding \cite{leviathan2023speculative}.
+Track~B is not a claim about cascade systems in general. It is a scoped negative baseline for this particular naive implementation, this Gemma~3 4B-IT / GPT-OSS 20B model pair, and this local runtime. As shown in \cref{tab:trackb}, the naive cascade reaches only 0.026 exact match at 0.28 TPS with 20.19~GB peak memory. The primary causes are tokenizer mismatch, output-distribution mismatch, and two-model orchestration overhead. We treat this result as evidence about the cascade tax in this specific configuration, not as a general statement against speculative decoding~\cite{leviathan2023speculative}.
 
-\subsection{Track C: Fixed Exit Failure and Compute-Both Composition Signal}
+\subsection{Track C: Dense Model Evaluation}
 
 \begin{table}[t]
 \centering
 \small
-\caption{Original Track C adaptive benchmark on Gemma 3 4B-IT.}
+\caption{Track~C adaptive benchmark on Gemma~3 4B-IT.}
 \label{tab:trackc_adaptive}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 Mode & Gen TPS & Exact Match & Layers Saved & Agreement Rate \\
@@ -146,21 +155,23 @@ Fixed exit L31 & 14.95 & 0.198 & 6\% & --- \\
 \texttt{top1\_agree} L31 & 7.19 & 0.807 & 0\% & 81.9\% \\
 Naive blend L31 & 10.01 & 0.688 & 0\% & 100\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-Track C first established that fixed exit is catastrophic on the tested dense model. Even the latest tested fixed exit, L31, saves only 6\% of layers and falls to 0.198 exact match. The same benchmark also established a genuine composition signal: compute-both agreement-aware composition at L31 reaches 0.807 exact match, well above both fixed exit and naive blending in \cref{tab:trackc_adaptive}. This is the core dense-model evidence supporting the composition-control thesis.
+Track~C establishes that fixed exit is catastrophic on the tested dense model. Even the latest fixed exit at L31 saves only 6\% of layers while falling to 0.198 exact match. By contrast, compute-both agreement-aware composition at L31 reaches 0.807 exact match (\cref{tab:trackc_adaptive}), well above both fixed exit and naive blending (+11.98 percentage points over naive blend). This is the core dense-model evidence for the composition-control thesis.
 
-\subsection{Track C: Real Selective-Depth Speed Validation at L31 and L20}
+\subsection{Track C: Selective-Depth Speed Validation}
 
 \begin{table}[t]
 \centering
 \small
-\caption{Dedicated Track C selective-depth benchmark. These numbers should be interpreted relative to the full-depth row in the same table because they come from a separate selective-depth runtime.}
+\caption{Selective-depth benchmark at L31. All numbers should be compared to the full-depth row within this table, as they come from a dedicated selective-depth runtime.}
 \label{tab:trackc_selective}
-\begin{tabular}{@{}p{3.4cm}ccccc@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-Mode & Gen TPS & Exact Match & Accept & Skip & Avg. Layers Saved \\
+Mode & Gen TPS & Exact Match & Accept & Skip & Avg.\ Layers Saved \\
 \midrule
 Full depth L33 & 20.05 & 1.000 & --- & 0\% & 0\% \\
 Fixed exit L31 & 19.10 & 0.198 & --- & --- & 5.9\% \\
@@ -168,21 +179,23 @@ Fixed exit L31 & 19.10 & 0.198 & --- & --- & 5.9\% \\
 Selective margin L31 & 18.26 & 0.229 & 78.2\% & 3.7\% & 0.2\% \\
 Selective entropy L31 & 18.20 & 0.208 & 93.6\% & 34.0\% & 2.0\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-The selective-depth extension answers a narrower question than \cref{tab:trackc_adaptive}: can the late-layer agreement signal at L31 be converted into real skipping? The answer is yes in an operational sense and no in a practical sense. As shown in \cref{tab:trackc_selective}, the runtime physically skipped layers 32 and 33 on some decode tokens. The entropy rule achieved a 34.0\% realized skip rate over continuation-eligible decode steps. However, only two of thirty-four layers were available to skip, so average layer savings remained just 2.0\% in the best case. Neither selective mode beat the dedicated full-depth baseline of 20.05 TPS, and both remained close to fixed-exit quality.
+The selective-depth extension asks whether the late-layer agreement signal at L31 can be converted into real layer skipping. The answer is affirmative operationally but negative practically. As shown in \cref{tab:trackc_selective}, the entropy rule achieves a 34.0\% realized skip rate over continuation-eligible decode steps. However, with only two of thirty-four layers available to skip, average savings remain at 2.0\%. Neither selective mode exceeds the full-depth baseline of 20.05 TPS, and both remain near fixed-exit quality.
 
-This distinction matters. Compute-both \texttt{top1\_agree} is a quality-control result with no physical skip. Real selective depth is a speed-validation result. On Gemma 3 4B-IT at L31, with this implementation and this local Apple MLX runtime, replay and control overhead erased the small available compute savings.
+This distinction is important. Compute-both \texttt{top1\_agree} is a quality-control result with no physical skip. Real selective depth is a speed-validation result. On Gemma~3 4B-IT at L31, replay and control overhead erased the available compute savings on this runtime.
 
 \begin{table}[t]
 \centering
 \small
-\caption{Dedicated L20 selective-depth probe.}
+\caption{Selective-depth probe at L20, testing whether a larger skip budget recovers a practical frontier.}
 \label{tab:trackc_selective_l20}
-\begin{tabular}{@{}p{3.4cm}ccccc@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-Mode & Gen TPS & Exact Match & Accept & Skip & Avg. Layers Saved \\
+Mode & Gen TPS & Exact Match & Accept & Skip & Avg.\ Layers Saved \\
 \midrule
 Full depth L33 & 15.16 & 1.000 & --- & 0\% & 0\% \\
 Fixed exit L20 & 20.20 & 0.026 & --- & --- & 38.2\% \\
@@ -191,51 +204,60 @@ Selective margin L20 & 11.29 & 0.083 & 70.2\% & 13.8\% & 5.3\% \\
 Selective entropy L20 & 13.26 & 0.073 & 73.4\% & 41.0\% & 15.7\% \\
 Selective hybrid L20 & 11.37 & 0.125 & 61.2\% & 6.4\% & 2.4\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-The L20 probe answers the obvious next question after L31: does a materially larger skip budget recover a practical frontier? \Cref{tab:trackc_selective_l20} shows that it does not in this configuration. The L20 entropy rule increased average layers saved to 15.7\% and the realized skip rate to 41.0\%, but still reached only 13.26 TPS against a matched full-depth baseline of 15.16 TPS. Quality also collapsed toward fixed-exit behavior at 0.073 exact match. Margin and hybrid variants were similarly weak. L20 therefore strengthens the failure boundary rather than overturning it: larger skip budget alone does not solve dense selective-depth when continuation quality is poor and replay cost remains significant.
+The L20 probe tests whether a materially larger skip budget recovers a practical frontier. \Cref{tab:trackc_selective_l20} shows it does not in this configuration. The entropy rule increases average layers saved to 15.7\% with a 41.0\% realized skip rate, but reaches only 13.26 TPS against a matched full-depth baseline of 15.16~TPS. Quality collapses toward fixed-exit levels at 0.073 exact match. Larger skip budget alone does not resolve dense selective-depth when continuation quality degrades and replay cost remains significant.
+
+\subsection{Track C: Multi-Family Dense Follow-Up}
 
 \begin{table}[t]
 \centering
 \small
-\caption{Focused late-checkpoint dense-family follow-up on the local Apple MLX runtime.}
+\caption{Late-checkpoint dense-family follow-up on the local Apple MLX runtime.}
 \label{tab:trackc_multifamily}
-\begin{tabular}{@{}p{3.0cm}cccccc@{}}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{@{}lcccccc@{}}
 \toprule
-Model & Late CP & Fixed Exit & Compute-Both & Selective & Selective TPS & Avg. Saved \\
+Model & Late CP & Fixed Exit & Compute-Both & Selective & Selective TPS & Avg.\ Saved \\
 \midrule
 Llama 3.1 8B & L29 & 0.151 & 1.000 & 0.469 & 16.60 vs 17.81 & 0.3\% \\
 Mistral 7B v0.3 & L29 & 0.109 & 1.000 & 0.318 & 17.25 vs 29.81 & 0.2\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
-\subsection{Track C: Focused Multi-Family Dense Follow-Up}
+\Cref{tab:trackc_multifamily} summarizes late-checkpoint follow-up on Llama~3.1 8B and Mistral~7B. The benchmark-side pattern from Gemma reproduces cleanly across both families: late fixed exit fails materially, compute-both \texttt{top1\_agree} recovers full-depth output, and real selective-depth physically skips layers but does not recover a practical speed-quality frontier.
 
-\Cref{tab:trackc_multifamily} summarizes the late-checkpoint follow-up on Llama 3.1 8B and Mistral 7B. The benchmark-side pattern from Gemma reproduces cleanly: late fixed exit fails materially, compute-both \texttt{top1\_agree} recovers full-depth output, and real selective-depth physically skips layers but still does not recover a practical speed-quality frontier. On Llama, fixed exit at L29 reached only 0.151 exact match, while compute-both \texttt{top1\_agree} reached 1.000 and real selective-depth entropy reached 0.469 exact at 16.60 TPS versus a matched full-depth baseline of 17.81 TPS. On Mistral, fixed exit at L29 reached 0.109 exact match, while compute-both \texttt{top1\_agree} again reached 1.000 and real selective-depth entropy reached 0.318 exact at 17.25 TPS versus 29.81 TPS full depth.
-
-These follow-up runs materially broaden the dense benchmark result beyond Gemma alone, but they do not justify calling Gemma's exact internal profile universal. The focused recon runs were family-sensitive: Gemma showed a late L20--L29 plateau, Llama showed a milder middle plateau around L12--L14 with heuristic resolution entry at L27, and Mistral showed an earlier plateau around L2--L8 with heuristic resolution entry at L26. The benchmark limitation therefore generalizes more cleanly than the exact KL-profile geometry.
+These results broaden the dense benchmark finding beyond Gemma, but do not justify treating Gemma's internal profile as universal. The KL-divergence depth profiles are family-sensitive: Gemma shows a late plateau at L20--L29, Llama shows a milder plateau near L12--L14 with resolution entry at L27, and Mistral shows an earlier plateau at L2--L8 with resolution entry at L26. The benchmark-side limitation therefore generalizes more cleanly than the internal profile geometry.
 
 \section{Limitations}
 
 \begin{itemize}
-\item \textbf{Architecture sensitivity.} The strongest practical result appears on the tested MoE model, not on the tested dense model. The magnitude of adaptive-depth gains is architecture-dependent in this repository.
-\item \textbf{Track B scope.} The cascade result is specific to a naive implementation, the Gemma 3 4B-IT and GPT-OSS 20B model pair, and the local Apple MLX runtime. It should not be generalized to speculative decoding as a whole.
-\item \textbf{Local runtime dependence.} All throughput, latency, and memory numbers are specific to a single Apple M1 Pro system using MLX. They should not be compared directly to GPU-based inference reports.
-\item \textbf{Small prompt suite.} The evaluation uses five prompts with warmup exclusion. That is adequate for directional findings, but not for statistical confidence.
-\item \textbf{Dense selective-depth remains unsuccessful here.} Real selective-depth runtimes on Gemma, Llama, and Mistral were operationally correct, but none recovered a practical speed-quality frontier in this configuration.
-\item \textbf{Limited continuation mechanisms.} The completed dense selective-depth results show that moving the checkpoint earlier or relying on late-checkpoint confidence alone is not enough by itself. Better continuation criteria, token-difficulty-aware routing, and lower-overhead cache repair remain open engineering and research questions.
-\item \textbf{Family-sensitive internal structure.} The benchmark-side dense limitation generalized across the tested families, but the internal KL-profile shape did not. The paper therefore does not claim a single universal dense depth profile.
+\item \textbf{Architecture sensitivity.} The strongest practical result appears on the tested MoE model. The magnitude of adaptive-depth gains is architecture-dependent.
+
+\item \textbf{Track B scope.} The cascade result is specific to a naive implementation, one model pair, and one local runtime. It should not be generalized to speculative decoding as a class of methods.
+
+\item \textbf{Runtime dependence.} All throughput, latency, and memory measurements are specific to a single Apple M1 Pro system using MLX. Direct comparison to GPU-based inference is not appropriate.
+
+\item \textbf{Evaluation scale.} The evaluation uses five prompts with warmup exclusion. This is sufficient for directional findings but insufficient for statistical confidence intervals.
+
+\item \textbf{Dense selective-depth.} Real selective-depth runtimes on all three tested dense families were operationally correct but did not recover a practical speed-quality frontier in this configuration.
+
+\item \textbf{Continuation mechanisms.} The current selective-depth results demonstrate that checkpoint placement and late-checkpoint confidence alone are insufficient. Better continuation criteria, token-difficulty-aware routing, and lower-overhead cache repair remain open problems.
+
+\item \textbf{Family-sensitive structure.} The benchmark-side dense limitation generalizes across tested families, but the internal KL-profile shape does not. We do not claim a single universal dense depth profile.
 \end{itemize}
 
 \section{Conclusion}
 
-The evidence in this repository supports a narrow but consistent conclusion: Transcender is best understood not as a generic early-exit method, but as a cross-layer composition control framework for adaptive transformer inference.
+The evidence presented supports a narrow but consistent conclusion: adaptive-depth inference for transformers is constrained less by exit-point selection than by cross-layer composition control---how intermediate and full-depth signals are combined without corrupting the output distribution.
 
-Track A remains the canonical result. On GPT-OSS 20B, \texttt{L22 top1\_agree} with entropy-gated exit achieves 0.969 exact match with about 49.5\% real layer savings. Track B remains a scoped negative comparison baseline for this naive cascade implementation, this Gemma 3 4B-IT to GPT-OSS 20B model pair, and this local Apple MLX runtime. Track C now has three layers: fixed-exit failure, compute-both composition signal, and weak real selective-depth. Gemma provides the deepest dense case study, and focused late-checkpoint follow-up on Llama 3.1 8B and Mistral 7B reproduces the same benchmark-side pattern. The dense-model conclusion is therefore not that adaptive depth is impossible, but that neither fixed exit nor the current real selective-depth mechanisms establish a practical frontier in the tested dense follow-ups.
+Track~A remains the primary result. On GPT-OSS 20B, \texttt{top1\_agree} at Layer~22 with entropy-gated exit achieves 0.969 exact match with approximately 49.5\% real layer savings. Track~B provides a scoped negative baseline for this naive cascade configuration. Track~C contributes three findings: fixed-exit failure on dense models, strong compute-both composition recovery, and weak real selective-depth across three tested families.
 
-The next research question is correspondingly narrower: whether selective-depth strategies with better, potentially family-sensitive continuation criteria, token-difficulty-aware routing, and lower-overhead cache-aware continuation can recover a practical frontier on dense models. That remains to be validated.
+The dense-model conclusion is not that adaptive depth is impossible, but that neither fixed exit nor current selective-depth mechanisms establish a practical frontier on the tested dense architectures. The next research direction is correspondingly narrower: whether family-sensitive continuation criteria, token-difficulty-aware routing, and cache-aware continuation can close the gap. That remains to be validated.
 
 \appendix
 
@@ -244,34 +266,127 @@ The next research question is correspondingly narrower: whether selective-depth 
 
 \noindent All commands assume execution from the repository root.
 
-\begin{itemize}
-\item \texttt{python scripts/track\_a/transcender\_exit\_layer\_benchmark.py}
-\item \texttt{python scripts/track\_b/transcender\_track\_b\_benchmark.py --large-model /path/to/gpt-oss-20b-raw --draft-model /path/to/gemma-3-4b-it}
-\item \texttt{python scripts/track\_c/transcender\_track\_c\_gemma\_profile.py --model /path/to/gemma-3-4b-it}
-\item \texttt{python scripts/track\_c/transcender\_track\_c\_gemma\_benchmark.py --model /path/to/gemma-3-4b-it --early-layer 16 --mid-layer 20 --late-layer 31}
-\item \texttt{python scripts/track\_c/transcender\_track\_c\_gemma\_selective\_depth.py --model /path/to/gemma-3-4b-it --late-layer 31}
-\item \texttt{python scripts/track\_c/transcender\_track\_c\_gemma\_selective\_depth.py --model /path/to/gemma-3-4b-it --late-layer 20 --margin-threshold 0.02 --entropy-threshold 0.65 --include-hybrid-mode}
-\item \texttt{python scripts/track\_c/transcender\_track\_c\_dense\_family\_validation.py --model /path/to/llama-3.1-8b-instruct-4bit --family llama --profile-output artifacts/recon/recon\_llama3\_8b.json --benchmark-output artifacts/dense\_followup/transcender\_track\_c\_llama3\_8b\_results.json --late-layer 29 --entropy-threshold 0.15}
-\item \texttt{python scripts/track\_c/transcender\_track\_c\_dense\_family\_validation.py --model /path/to/mistral-7b-instruct-v0.3-4bit --family mistral --profile-output artifacts/recon/recon\_mistral7b.json --benchmark-output artifacts/dense\_followup/transcender\_track\_c\_mistral7b\_results.json --late-layer 29 --entropy-threshold 0.15}
-\end{itemize}
+\smallskip
+\noindent\textbf{Track A:}
+{\small
+\begin{verbatim}
+python scripts/track_a/transcender_exit_layer_benchmark.py
+\end{verbatim}
+}
+
+\noindent\textbf{Track B:}
+{\small
+\begin{verbatim}
+python scripts/track_b/transcender_track_b_benchmark.py \
+  --large-model /path/to/gpt-oss-20b-raw \
+  --draft-model /path/to/gemma-3-4b-it
+\end{verbatim}
+}
+
+\noindent\textbf{Track C --- Gemma profile and benchmark:}
+{\small
+\begin{verbatim}
+python scripts/track_c/transcender_track_c_gemma_profile.py \
+  --model /path/to/gemma-3-4b-it
+
+python scripts/track_c/transcender_track_c_gemma_benchmark.py \
+  --model /path/to/gemma-3-4b-it \
+  --early-layer 16 --mid-layer 20 --late-layer 31
+\end{verbatim}
+}
+
+\noindent\textbf{Track C --- Gemma selective depth:}
+{\small
+\begin{verbatim}
+python scripts/track_c/\
+  transcender_track_c_gemma_selective_depth.py \
+  --model /path/to/gemma-3-4b-it --late-layer 31
+
+python scripts/track_c/\
+  transcender_track_c_gemma_selective_depth.py \
+  --model /path/to/gemma-3-4b-it --late-layer 20 \
+  --margin-threshold 0.02 --entropy-threshold 0.65 \
+  --include-hybrid-mode
+\end{verbatim}
+}
+
+\noindent\textbf{Track C --- Dense family validation:}
+{\small
+\begin{verbatim}
+python scripts/track_c/\
+  transcender_track_c_dense_family_validation.py \
+  --model /path/to/llama-3.1-8b-instruct-4bit \
+  --family llama --late-layer 29 \
+  --entropy-threshold 0.15 \
+  --profile-output artifacts/recon/recon_llama3_8b.json \
+  --benchmark-output artifacts/dense_followup/\
+    transcender_track_c_llama3_8b_results.json
+
+python scripts/track_c/\
+  transcender_track_c_dense_family_validation.py \
+  --model /path/to/mistral-7b-instruct-v0.3-4bit \
+  --family mistral --late-layer 29 \
+  --entropy-threshold 0.15 \
+  --profile-output artifacts/recon/recon_mistral7b.json \
+  --benchmark-output artifacts/dense_followup/\
+    transcender_track_c_mistral7b_results.json
+\end{verbatim}
+}
 
 \section{Benchmark Artifacts}
 \label{app:artifacts}
 
+{\small
 \begin{itemize}
-\item \texttt{artifacts/track\_a/transcender\_exit\_layer\_benchmark.json}: Track A per-prompt and aggregate metrics for L22 and L23 configurations.
-\item \texttt{artifacts/track\_b/transcender\_track\_b\_benchmark.json}: Track B per-prompt and aggregate metrics for draft-only, full-depth, cascade, and Track A comparison modes.
-\item \texttt{artifacts/track\_c/transcender\_track\_c\_gemma\_results.json}: Track C per-prompt and aggregate metrics for the original six-mode Gemma benchmark.
-\item \texttt{artifacts/track\_c/transcender\_track\_c\_gemma\_selective\_depth\_results.json}: Track C per-prompt and aggregate metrics for real selective-depth speed validation at L31.
-\item \texttt{artifacts/track\_c/transcender\_track\_c\_gemma\_selective\_depth\_L20\_results.json}: Track C per-prompt and aggregate metrics for the dedicated L20 selective-depth probe.
-\item \texttt{artifacts/recon/recon\_llama3\_8b.json}: Focused KL profile and heuristic summary for Llama 3.1 8B Instruct 4bit.
-\item \texttt{artifacts/dense\_followup/transcender\_track\_c\_llama3\_8b\_results.json}: Focused late-checkpoint validation metrics for Llama 3.1 8B Instruct 4bit.
-\item \texttt{artifacts/recon/recon\_mistral7b.json}: Focused KL profile and heuristic summary for Mistral 7B Instruct v0.3 4bit.
-\item \texttt{artifacts/dense\_followup/transcender\_track\_c\_mistral7b\_results.json}: Focused late-checkpoint validation metrics for Mistral 7B Instruct v0.3 4bit.
-\item \texttt{artifacts/track\_c/gemma\_kl\_profile.json}: Per-layer KL divergence values across the 34-layer Gemma 3 4B-IT stack.
-\end{itemize}
+\item \texttt{artifacts/track\_a/transcender\_exit\_layer\_benchmark.json}:
+  Track~A per-prompt and aggregate metrics for L22 and L23.
 
-\bibliographystyle{plain}
-\bibliography{references}
+\item \texttt{artifacts/track\_b/transcender\_track\_b\_benchmark.json}:
+  Track~B per-prompt and aggregate metrics for draft-only, full-depth, cascade, and Track~A comparison.
+
+\item \texttt{artifacts/track\_c/transcender\_track\_c\_gemma\_results.json}:
+  Track~C per-prompt and aggregate metrics for the six-mode Gemma benchmark.
+
+\item \texttt{artifacts/track\_c/...gemma\_selective\_depth\_results.json}:
+  Track~C selective-depth speed validation at L31.
+
+\item \texttt{artifacts/track\_c/...gemma\_selective\_depth\_L20\_results.json}:
+  Track~C dedicated L20 selective-depth probe.
+
+\item \texttt{artifacts/recon/recon\_llama3\_8b.json}:
+  KL profile and heuristic summary for Llama~3.1 8B Instruct 4-bit.
+
+\item \texttt{artifacts/dense\_followup/...llama3\_8b\_results.json}:
+  Late-checkpoint validation metrics for Llama~3.1 8B.
+
+\item \texttt{artifacts/recon/recon\_mistral7b.json}:
+  KL profile and heuristic summary for Mistral~7B Instruct v0.3 4-bit.
+
+\item \texttt{artifacts/dense\_followup/...mistral7b\_results.json}:
+  Late-checkpoint validation metrics for Mistral~7B.
+
+\item \texttt{artifacts/track\_c/gemma\_kl\_profile.json}:
+  Per-layer KL divergence across the 34-layer Gemma~3 4B-IT stack.
+\end{itemize}
+}
+
+\begin{thebibliography}{9}
+
+\bibitem{elbayad2020depthadaptive}
+M.~Elbayad, L.~Besacier, and J.~Verbeek.
+\newblock Depth-adaptive transformer.
+\newblock In \emph{Proceedings of the 8th International Conference on Learning Representations (ICLR)}, 2020.
+
+\bibitem{leviathan2023speculative}
+Y.~Leviathan, M.~Kalman, and Y.~Matias.
+\newblock Fast inference from transformers via speculative decoding.
+\newblock In \emph{Proceedings of the 40th International Conference on Machine Learning (ICML)}, 2023.
+
+\bibitem{gemma2024report}
+{Gemma Team}, T.~Mesnard, C.~Hardin, R.~Dadashi, S.~Bhupatiraju, et~al.
+\newblock Gemma: Open models based on {G}emini research and technology.
+\newblock \emph{arXiv preprint arXiv:2403.08295}, 2024.
+
+\end{thebibliography}
 
 \end{document}

@@ -4,7 +4,7 @@ title: "Transcender: Cross-Layer Composition Control for Adaptive Transformer In
 type: software
 authors:
   - family-names: "Son"
-    given-names: "Jun"
+    given-names: "Beomjune"
 repository-code: "https://github.com/juniverse1103/transcender"
 license: MIT
 version: "0.1.0"
