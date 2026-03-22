@@ -31,6 +31,8 @@ These files informed development or provide retained reference data, but they ar
 | Artifact | What It Measures |
 |----------|------------------|
 | `artifacts/track_a/transcender_top1_agree_benchmark.json` | Earlier GPT-OSS blend-strategy comparison retained for reference |
+| `artifacts/dense_followup/llama31_8b_exit_sweep.json` | Llama 3.1 8B exit-layer agreement sweep used for dense frontier discovery |
+| `artifacts/dense_followup/llama31_8b_exit_sweep_summary.csv` | CSV summary for the Llama 3.1 8B exit-layer agreement sweep |
 | `artifacts/dense_followup/transcender_track_c_gemma_advanced_probe_L20_results.json` | Gemma L20 advanced probe with replay repair; quality improved but realized skipping collapsed |
 | `artifacts/dense_followup/transcender_track_c_llama3_8b_family_sensitive_probe.json` | Llama family-sensitive continuation probe; preserved quality but realized skipping remained negligible |
 | `artifacts/dense_followup/transcender_track_c_llama3_8b_cache_aware_probe.json` | Llama chunk-repair cache-aware probe; some runtime recovery but no practical frontier |

@@ -20,7 +20,7 @@ This document explains the top-level structure and classifies every major compon
 
 | Directory | Contents |
 |-----------|----------|
-| `transcender/` | Installable Python package: `TranscenderModel`, `SonRouter`, `SonRoutingLoss`, and MLX engine components used by the current Track A sparse-MoE runs |
+| `transcender/` | Installable Python package: `TranscenderModel`, `SonRouter`, `SonRoutingLoss`, MLX engine components for the current Track A sparse-MoE runs, and shared dense selective-depth policy utilities |
 | `scripts/` | All experiment and benchmark scripts, organized by track |
 | `artifacts/` | All JSON result files, organized by track |
 | `paper/` | Canonical LaTeX draft, bibliography, figures, and retained markdown whitepapers |
@@ -58,6 +58,7 @@ This document explains the top-level structure and classifies every major compon
 | `transcender_track_c_gemma_benchmark.py` | Gemma six-mode adaptive-depth benchmark |
 | `transcender_track_c_gemma_selective_depth.py` | Real selective-depth speed validation (L31 and L20) |
 | `transcender_track_c_dense_family_validation.py` | Focused Llama/Mistral dense-family late-checkpoint validation + KL recon |
+| `transcender_dense_exit_sweep.py` | Exploratory dense exit-layer agreement sweep for frontier discovery |
 
 ### scripts/exploratory/ — Exploratory Probes
 
@@ -123,6 +124,8 @@ This document explains the top-level structure and classifies every major compon
 |------|----------------|
 | `transcender_track_c_llama3_8b_results.json` | Yes — Llama dense-family validation |
 | `transcender_track_c_mistral7b_results.json` | Yes — Mistral dense-family validation |
+| `llama31_8b_exit_sweep.json` | Exploratory — Llama exit-layer agreement sweep |
+| `llama31_8b_exit_sweep_summary.csv` | Exploratory — CSV summary for the Llama exit-layer agreement sweep |
 | `transcender_track_c_gemma_advanced_probe_L20_results.json` | Exploratory — Gemma L20 advanced probe |
 | `transcender_track_c_llama3_8b_family_sensitive_probe.json` | Exploratory — Llama family-sensitive probe |
 | `transcender_track_c_llama3_8b_cache_aware_probe.json` | Exploratory — Llama cache-aware probe |

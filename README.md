@@ -51,6 +51,7 @@ transcender/              # Installable Python package
   __init__.py             # Exports: TranscenderModel, SonRouter, SonRoutingLoss
   router.py               # Son Router + KL-calibrated routing loss
   model.py                # Multi-arch HF model wrapper (canonical)
+  policies.py             # Dense selective-depth acceptance policies (exploratory Track C)
   engine/                 # Sparse-MoE engine components
 
 scripts/
@@ -122,6 +123,7 @@ pytest tests/ -v
 | `scripts/track_c/transcender_track_c_gemma_benchmark.py` | C | Validated | Gemma adaptive-depth benchmark |
 | `scripts/track_c/transcender_track_c_gemma_selective_depth.py` | C | Validated | Real selective-depth speed validation |
 | `scripts/track_c/transcender_track_c_dense_family_validation.py` | C | Validated | Llama/Mistral dense-family validation |
+| `scripts/track_c/transcender_dense_exit_sweep.py` | C | Exploratory | Dense exit-layer agreement sweep for frontier discovery |
 | `scripts/exploratory/transcender_track_c_gemma_advanced_probe.py` | C | Exploratory | Gemma L20 advanced probe |
 | `scripts/exploratory/transcender_track_c_llama_family_sensitive_probe.py` | C | Exploratory | Llama family-sensitive probe |
 | `scripts/exploratory/transcender_track_c_dense_cache_aware_probe.py` | C | Exploratory | Llama cache-aware continuation probe |
