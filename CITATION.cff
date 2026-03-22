@@ -3,10 +3,9 @@ message: "If you use this software, please cite it as below."
 title: "Transcender: Cross-Layer Composition Control for Adaptive Transformer Inference"
 type: software
 authors:
-  - family-names: "[Update before publication]"
-    given-names: "[Update before publication]"
-    # orcid: "https://orcid.org/0000-0000-0000-0000"
-repository-code: "https://github.com/[owner]/transcender"
+  - family-names: "Son"
+    given-names: "Jun"
+repository-code: "https://github.com/juniverse1103/transcender"
 license: MIT
 version: "0.1.0"
 date-released: "2026-03-22"
