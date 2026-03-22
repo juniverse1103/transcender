@@ -6,8 +6,8 @@ Instructions for reproducing the validated results in this repository.
 
 ## Environment
 
-**Hardware:** Apple M1 Pro, 32 GB unified memory
-**Runtime:** Apple MLX
+**Hardware:** Apple M1 Pro, 32 GB unified memory  
+**Runtime:** Apple MLX  
 **Python:** >= 3.10
 
 ```bash
@@ -20,21 +20,41 @@ All commands below assume execution from the repository root.
 
 ---
 
-## Track A — Canonical Same-Model Adaptive Depth
+## Track A — Same-Model Adaptive Depth
+
+Track A now covers two tested sparse MoE families. The canonical release artifacts are the GPT-OSS N=15 benchmark and the Qwen3-30B-A3B cross-model MoE benchmark.
+
+### GPT-OSS 20B
 
 **Model required:** GPT-OSS 20B (MXFP4 quantization, local path)
 
 ```bash
-# Exit layer comparison (L22 vs L23)
-python scripts/track_a/transcender_exit_layer_benchmark.py
-
-# Blend strategy benchmark
-python scripts/track_a/transcender_top1_agree_benchmark.py
+python scripts/track_a/transcender_exit_layer_benchmark.py \
+  --model /path/to/gpt-oss-20b-raw \
+  --model-type gpt_oss \
+  --output artifacts/track_a/transcender_exit_layer_benchmark_n15.json
 ```
 
-**Expected result:** L22 `top1_agree` achieves ~0.969 exact match with ~49.5% real layer savings.
+**Expected result:** L22 `top1_agree` reaches approximately 0.941 exact match, 13/15 perfect prompts, 0.528 `avg_layers_saved`, and 21.1 generation TPS. L23 full depth remains the 1.000 exact-match control.
 
-**Scope warning:** TPS and TTFT numbers are hardware-specific. Exact match and layers-saved are deterministic with greedy decoding and fixed prompts.
+### Qwen3-30B-A3B
+
+**Model required:** `mlx-community/Qwen3-30B-A3B-4bit` or an equivalent local path
+
+```bash
+python scripts/track_a/transcender_exit_layer_benchmark.py \
+  --model mlx-community/Qwen3-30B-A3B-4bit \
+  --model-type qwen3_moe \
+  --output artifacts/track_a/qwen3_30b_a3b_exit_layer_benchmark.json
+```
+
+**Expected result:** L46 `top1_agree` reaches approximately 0.868 exact match, 11/15 perfect prompts, 0.735 `avg_layers_saved`, and 34.5 generation TPS. L47 full depth remains the 1.000 exact-match control at 40.9 generation TPS.
+
+**Metric note:** `avg_layers_saved` is the mean number of layers physically skipped per generated token. At GPT-OSS L22 and Qwen3 L46, each early-exiting token skips one layer. Do not interpret this field as a total-compute-savings percentage.
+
+**Supplementary retained benchmark:** `python scripts/track_a/transcender_top1_agree_benchmark.py` runs an earlier GPT-OSS blend-strategy comparison retained for reference, but it is not the canonical Track A release artifact.
+
+**Scope warning:** TPS and TTFT numbers are hardware-specific. Exact match and `avg_layers_saved` are deterministic under greedy decoding and the fixed prompt suite.
 
 ---
 
@@ -48,7 +68,7 @@ python scripts/track_b/transcender_track_b_benchmark.py \
   --draft-model /path/to/gemma-3-4b-it
 ```
 
-**Expected result:** Naive cascade reaches ~0.026 exact match, ~0.28 TPS. Track A dominates on all metrics for this model pair.
+**Expected result:** Naive cascade reaches approximately 0.026 exact match at approximately 0.28 TPS. For this model pair and runtime, it does not beat the current Track A frontier.
 
 **Scope warning:** This result is specific to this naive cascade implementation, this model pair, and this local Apple MLX runtime. It does not characterize cascade strategies in general.
 
@@ -134,8 +154,9 @@ python scripts/exploratory/transcender_track_c_dense_cache_aware_probe.py \
 ## Artifact Verification
 
 All JSON artifacts in `artifacts/` are original benchmark outputs. To verify:
+
 1. Re-run the corresponding script
 2. Compare the new JSON output against the stored artifact
-3. Exact match and layer savings should be deterministic; TPS will vary by hardware state
+3. Exact match and `avg_layers_saved` should be deterministic; TPS will vary by hardware state
 
 See [RESULTS_INDEX.md](RESULTS_INDEX.md) for the complete artifact inventory.

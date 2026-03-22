@@ -1,7 +1,9 @@
 # Transcender: Composition-Controlled Adaptive-Depth Inference for Transformer Language Models
 
-**Version 2.0 — Multi-Track Empirical Validation (Evidence-Audited)**
+**Version 2.0 — Superseded Markdown Narrative**
 **Date:** 2026-03-22
+
+> **Status:** Retained for historical reference only. This markdown snapshot predates the final GPT-OSS N=15 / Qwen3 / dense-follow-up release reconciliation and still contains obsolete numbers and earlier terminology. Use `paper/main.tex`, `README.md`, and `docs/BENCHMARK_SUMMARY.md` as the current public-release sources of truth.
 
 ---
 

@@ -19,5 +19,6 @@ keywords:
 abstract: >-
   Transcender is a cross-layer composition control framework for adaptive
   transformer inference. It demonstrates that agreement-aware logit-space
-  blending enables practical adaptive-depth inference on MoE models while
-  characterizing the limitations of current approaches on dense architectures.
+  blending supports a viable penultimate-layer frontier on the tested sparse
+  MoE families while characterizing the limitations of current approaches on
+  dense architectures.

@@ -18,7 +18,7 @@
 \maketitle
 
 \begin{abstract}
-We present Transcender, a cross-layer composition control framework for adaptive transformer inference. The central thesis is that adaptive-depth inference is constrained less by exit-point selection than by whether intermediate-depth and full-depth signals can be combined without corrupting the output distribution. We evaluate this framing across three empirical tracks, producing a mixed but coherent result. On GPT-OSS 20B (Track~A), \texttt{top1\_agree} composition at Layer~22 with entropy-gated exit achieves 0.969 exact match against full-depth greedy decoding while physically skipping approximately 49.5\% of layers. Track~B provides a scoped negative comparison: a naive Gemma~3 4B-IT to GPT-OSS 20B cross-model cascade reaches only 0.026 exact match at 0.28 tokens per second (TPS) on the local Apple MLX runtime. Track~C extends the evaluation to dense architectures. On Gemma~3 4B-IT, compute-both agreement-aware composition recovers 0.807 exact match at both L31 and L20, versus 0.198 and 0.026 for fixed exit at those layers, while real selective-depth remains practically weak. Focused late-checkpoint follow-up on Llama~3.1 8B and Mistral~7B reproduces the same pattern: fixed exit fails materially, compute-both \texttt{top1\_agree} recovers full-depth output, and real selective-depth still trails the matched full-depth baseline. The resulting picture is architecture-dependent: strong practical adaptive depth on the tested MoE model, but only partial methodology transfer to the tested dense families.
+We present Transcender, a cross-layer composition control framework for adaptive transformer inference. The central thesis is that adaptive-depth inference is constrained less by exit-point selection than by whether intermediate-depth and full-depth signals can be combined without corrupting the output distribution. We evaluate this framing across three empirical tracks, producing a mixed but coherent result. On two sparse MoE architectures (Track~A), \texttt{top1\_agree} composition at the penultimate layer with entropy-gated exit achieves 0.941 exact match on GPT-OSS 20B (13 of 15 prompts perfect) and 0.868 on Qwen3-30B-A3B (11 of 15 perfect), each with a sharp quality cliff one layer earlier. Track~B provides a scoped negative comparison: a naive Gemma~3 4B-IT to GPT-OSS 20B cross-model cascade reaches only 0.026 exact match at 0.28 tokens per second (TPS) on the local Apple MLX runtime. Track~C extends the evaluation to dense architectures. On Gemma~3 4B-IT, compute-both agreement-aware composition recovers 0.807 exact match at both L31 and L20, versus 0.198 and 0.026 for fixed exit at those layers, while real selective-depth remains practically weak. Focused late-checkpoint follow-up on Llama~3.1 8B and Mistral~7B reproduces the same pattern: fixed exit fails materially, compute-both \texttt{top1\_agree} recovers full-depth output, and real selective-depth still trails the matched full-depth baseline. The resulting picture is architecture-dependent: a viable penultimate-layer selective-exit frontier on both tested sparse MoE families, but no practical selective-depth frontier on the tested dense architectures.
 \end{abstract}
 
 \section{Introduction}
@@ -27,7 +27,7 @@ Variable-compute inference for transformer language models is commonly framed in
 
 The deeper problem is \emph{cross-layer composition control}: when an intermediate layer and the final layer disagree, a system needs a principled rule for deciding whether to trust the shallow path, the deep path, or a combination of the two. Without such a rule, adaptive-depth inference either collapses into low-quality fixed exit or pays the full cost of computing both paths without recovering a practical speed-quality tradeoff.
 
-We present evidence supporting this reframing across three tracks. Track~A establishes a practical same-model adaptive-depth frontier on GPT-OSS 20B. Track~B demonstrates that a naive cross-model cascade can fail severely when tokenizer mismatch, distribution mismatch, and orchestration overhead compound. Track~C characterizes both the promise and the current limits of composition control on dense models: compute-both agreement-aware composition recovers substantial quality on Gemma~3 4B-IT, Llama~3.1 8B, and Mistral~7B, but real selective-depth implementations do not yet beat their matched full-depth baselines on this runtime.
+We present evidence supporting this reframing across three tracks. Track~A establishes a practical same-model adaptive-depth frontier on GPT-OSS 20B, with cross-model reproduction on Qwen3-30B-A3B. Track~B demonstrates that a naive cross-model cascade can fail severely when tokenizer mismatch, distribution mismatch, and orchestration overhead compound. Track~C characterizes both the promise and the current limits of composition control on dense models: compute-both agreement-aware composition recovers substantial quality on Gemma~3 4B-IT, Llama~3.1 8B, and Mistral~7B, but real selective-depth implementations do not yet beat their matched full-depth baselines on this runtime.
 
 \section{Contributions}
 
@@ -85,11 +85,11 @@ When continuation is required after one or more accepted shallow tokens, the pre
 
 \section{Experimental Setup}
 
-All results were collected on a single Apple M1 Pro system with 32~GB unified memory using the Apple MLX runtime. The evaluation uses a fixed prompt suite of five factual and explanatory prompts covering quantum entanglement, the French Revolution, recursion, TCP versus UDP, and photosynthesis. Each prompt generates 48 tokens under greedy decoding. Aggregate metrics exclude the first prompt as warmup to reduce distortion from JIT compilation and initial memory allocation.
+All results were collected on a single Apple M1 Pro system with 32~GB unified memory using the Apple MLX runtime. The Track~A evaluation uses a suite of 16 prompts spanning six categories: expository (5), code/technical (2), reasoning/logic (2), creative/open-ended (2), short-answer factual (3), and list/structured output (2). Each prompt generates 48 tokens under greedy decoding. Aggregate metrics exclude the first prompt as warmup to reduce distortion from JIT compilation and initial memory allocation, yielding $N{=}15$ scored prompts. Tracks~B and~C use a smaller five-prompt subset of the expository category.
 
 The primary quality metric is exact token-sequence match against a full-depth baseline on the same model. Secondary metrics include generation throughput (tokens per second), time to first token (TTFT), elapsed time, peak memory, and layer-saving statistics where applicable.
 
-The evaluated models are: GPT-OSS 20B, a 24-layer Mixture-of-Experts model in MXFP4 quantization; Gemma~3 4B-IT~\cite{gemma2024report}, a 34-layer dense model; and two MLX 4-bit dense models---Llama~3.1 8B Instruct and Mistral~7B Instruct v0.3. Track~B combines Gemma~3 4B-IT and GPT-OSS 20B in a naive cross-model cascade. Track~C evaluates Gemma~3 4B-IT across six adaptive modes and dedicated selective-depth runtimes, then extends to late-checkpoint validation on Llama and Mistral.
+The evaluated models are: GPT-OSS 20B, a 24-layer Mixture-of-Experts model (32 experts, top-4) in MXFP4 quantization; Qwen3-30B-A3B, a 48-layer MoE model (128 experts, top-8) in 4-bit quantization; Gemma~3 4B-IT~\cite{gemma2024report}, a 34-layer dense model; and two MLX 4-bit dense models---Llama~3.1 8B Instruct and Mistral~7B Instruct v0.3. Track~A evaluates both MoE models. Track~B combines Gemma~3 4B-IT and GPT-OSS 20B in a naive cross-model cascade. Track~C evaluates Gemma~3 4B-IT across six adaptive modes and dedicated selective-depth runtimes, then extends to late-checkpoint validation on Llama and Mistral.
 
 \section{Results}
 
@@ -98,20 +98,41 @@ The evaluated models are: GPT-OSS 20B, a 24-layer Mixture-of-Experts model in MX
 \begin{table}[t]
 \centering
 \small
-\caption{Track~A results on GPT-OSS 20B. The \texttt{avg\_layers\_saved} column reflects physical entropy-gated layer skipping, not compute-both blending.}
+\caption{Track~A local exit-layer frontier on GPT-OSS 20B ($N{=}15$ scored prompts). The \texttt{avg\_layers\_saved} column reports the mean number of layers physically skipped per generated token via entropy-gated exit. On a 24-layer model at exit layer $e$, each early-exiting token skips $24 - (e{+}1)$ layers.}
 \label{tab:tracka}
 \begin{tabular}{@{}lccc@{}}
 \toprule
 Configuration & Gen TPS & Exact Match & Avg.\ Layers Saved \\
 \midrule
-Full depth (L23) & 31.79 & 1.000 & 0\% \\
-L22 \texttt{top1\_agree} & 27.41 & 0.969 & 49.5\% \\
-L23 \texttt{top1\_agree} & 32.41 & 1.000 & 0\% \\
+Full depth (L23) & 25.2 & 1.000 & 0.000 \\
+L22 \texttt{top1\_agree} & 21.1 & 0.941 & 0.528 \\
+L21 \texttt{top1\_agree} & 22.2 & 0.745 & 1.156 \\
+L20 \texttt{top1\_agree} & 20.0 & 0.379 & 1.257 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Track~A is the primary practical result. As shown in \cref{tab:tracka}, \texttt{top1\_agree} at Layer~22 preserves 0.969 exact match while physically skipping approximately half of the model's layers via entropy-gated exit. This is not a compute-both artifact: the layer savings reflect genuine adaptive compute reduction in the MLX runtime.
+Track~A is the primary practical result. As shown in \cref{tab:tracka}, \texttt{top1\_agree} at Layer~22 achieves 0.941 exact match across 15 scored prompts (13 of 15 perfect), with an average of 0.528 layers saved per generated token via entropy-gated exit. At L22 on a 24-layer model, each early-exiting token physically skips one MoE-MLP block (layer~23); the 0.528 figure therefore reflects that approximately 53\% of decode tokens triggered the entropy gate and exited early. L22 is the only viable operating point in the local frontier: L21 drops to 0.745 exact match (6 of 15 perfect), and L20 to 0.379 (0 of 15 perfect). The layer savings are not a compute-both artifact---they reflect genuine adaptive compute reduction in the MLX runtime.
+
+\subsubsection{Cross-Model MoE Reproduction}
+
+\begin{table}[t]
+\centering
+\small
+\caption{Cross-model MoE validation on Qwen3-30B-A3B ($N{=}15$ scored prompts). On a 48-layer model at exit layer $e$, each early-exiting token skips $48 - (e{+}1)$ layers.}
+\label{tab:tracka_qwen3}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Configuration & Gen TPS & Exact Match & Avg.\ Layers Saved \\
+\midrule
+Full depth (L47) & 40.9 & 1.000 & 0.000 \\
+L46 \texttt{top1\_agree} & 34.5 & 0.868 & 0.735 \\
+L45 \texttt{top1\_agree} & 35.3 & 0.432 & 1.481 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+To test whether the MoE frontier generalizes beyond GPT-OSS 20B, we ran the same benchmark on Qwen3-30B-A3B, a structurally different sparse MoE model (48 layers, 128 experts, top-8 routing). As shown in \cref{tab:tracka_qwen3}, \texttt{top1\_agree} at Layer~46 (penultimate) achieves 0.868 exact match (11 of 15 perfect) with 0.735 average layers saved per token. Quality drops sharply at L45 (0.432 exact match, 0 of 15 perfect), confirming a single viable penultimate-layer operating point with the same structural pattern as GPT-OSS. The Qwen3 frontier is weaker than GPT-OSS (0.868 vs.\ 0.941), indicating that operating-point quality is model-dependent, but the frontier structure---a viable penultimate exit with a sharp cliff one layer earlier---reproduces across both tested sparse MoE families without any threshold tuning.
 
 \subsection{Track B: Cross-Model Cascade Baseline}
 
@@ -128,7 +149,7 @@ Mode & Gen TPS & Exact Match & Peak Mem (GB) & TTFT (s) \\
 Draft only (Gemma 3 4B-IT) & 18.99 & 0.006 & 7.28 & 0.23 \\
 GPT-OSS full depth & 30.94 & 1.000 & 12.96 & 0.66 \\
 Naive cascade & 0.28 & 0.026 & 20.19 & 11.83 \\
-Track A L22 \texttt{top1\_agree} & 20.22 & 0.969 & 12.96 & 0.98 \\
+Track A L22 \texttt{top1\_agree} & 21.1 & 0.941 & 12.96 & 0.98 \\
 \bottomrule
 \end{tabular}%
 }
@@ -236,13 +257,15 @@ These results broaden the dense benchmark finding beyond Gemma, but do not justi
 \section{Limitations}
 
 \begin{itemize}
-\item \textbf{Architecture sensitivity.} The strongest practical result appears on the tested MoE model. The magnitude of adaptive-depth gains is architecture-dependent.
+\item \textbf{Architecture sensitivity.} The strongest practical result appears on the tested MoE models. The magnitude of adaptive-depth gains is architecture-dependent, as shown by the quality difference between GPT-OSS 20B (0.941) and Qwen3-30B-A3B (0.868).
+
+\item \textbf{MoE coverage.} The cross-model sparse-MoE validation covers two families. Broader MoE generalization remains untested.
 
 \item \textbf{Track B scope.} The cascade result is specific to a naive implementation, one model pair, and one local runtime. It should not be generalized to speculative decoding as a class of methods.
 
 \item \textbf{Runtime dependence.} All throughput, latency, and memory measurements are specific to a single Apple M1 Pro system using MLX. Direct comparison to GPU-based inference is not appropriate.
 
-\item \textbf{Evaluation scale.} The evaluation uses five prompts with warmup exclusion. This is sufficient for directional findings but insufficient for statistical confidence intervals.
+\item \textbf{Evaluation scale.} Track~A uses 15 scored prompts across six categories; Tracks~B and~C use five. This is sufficient for directional findings but insufficient for statistical confidence intervals.
 
 \item \textbf{Dense selective-depth.} Real selective-depth runtimes on all three tested dense families were operationally correct but did not recover a practical speed-quality frontier in this configuration.
 
@@ -255,7 +278,7 @@ These results broaden the dense benchmark finding beyond Gemma, but do not justi
 
 The evidence presented supports a narrow but consistent conclusion: adaptive-depth inference for transformers is constrained less by exit-point selection than by cross-layer composition control---how intermediate and full-depth signals are combined without corrupting the output distribution.
 
-Track~A remains the primary result. On GPT-OSS 20B, \texttt{top1\_agree} at Layer~22 with entropy-gated exit achieves 0.969 exact match with approximately 49.5\% real layer savings. Track~B provides a scoped negative baseline for this naive cascade configuration. Track~C contributes three findings: fixed-exit failure on dense models, strong compute-both composition recovery, and weak real selective-depth across three tested families.
+Track~A remains the primary result. On GPT-OSS 20B, \texttt{top1\_agree} at the penultimate layer achieves 0.941 exact match (13 of 15 perfect), with approximately 53\% of decode tokens physically skipping the final MoE-MLP block. On Qwen3-30B-A3B, the same mechanism at the penultimate layer achieves 0.868 exact match (11 of 15 perfect) with a sharp quality cliff one layer earlier. The frontier structure reproduces across both tested sparse MoE families; the operating-point quality is model-dependent. Track~B provides a scoped negative baseline for this naive cascade configuration. Track~C contributes three findings: fixed-exit failure on dense models, strong compute-both composition recovery, and weak real selective-depth across three tested families.
 
 The dense-model conclusion is not that adaptive depth is impossible, but that neither fixed exit nor current selective-depth mechanisms establish a practical frontier on the tested dense architectures. The next research direction is correspondingly narrower: whether family-sensitive continuation criteria, token-difficulty-aware routing, and cache-aware continuation can close the gap. That remains to be validated.
 
@@ -267,10 +290,19 @@ The dense-model conclusion is not that adaptive depth is impossible, but that ne
 \noindent All commands assume execution from the repository root.
 
 \smallskip
-\noindent\textbf{Track A:}
+\noindent\textbf{Track A (GPT-OSS 20B):}
 {\small
 \begin{verbatim}
 python scripts/track_a/transcender_exit_layer_benchmark.py
+\end{verbatim}
+}
+
+\noindent\textbf{Track A (Qwen3-30B-A3B):}
+{\small
+\begin{verbatim}
+python scripts/track_a/transcender_exit_layer_benchmark.py \
+  --model-type qwen3_moe \
+  --model mlx-community/Qwen3-30B-A3B-4bit
 \end{verbatim}
 }
 
@@ -338,8 +370,11 @@ python scripts/track_c/\
 
 {\small
 \begin{itemize}
-\item \texttt{artifacts/track\_a/transcender\_exit\_layer\_benchmark.json}:
-  Track~A per-prompt and aggregate metrics for L22 and L23.
+\item \texttt{artifacts/track\_a/transcender\_exit\_layer\_benchmark\_n15.json}:
+  Track~A per-prompt metrics for GPT-OSS 20B at L20, L21, L22, and L23 full-depth across 16 prompts (15 scored).
+
+\item \texttt{artifacts/track\_a/qwen3\_30b\_a3b\_exit\_layer\_benchmark.json}:
+  Track~A per-prompt metrics for Qwen3-30B-A3B at L40, L44, L45, L46, and L47 full-depth across 16 prompts (15 scored).
 
 \item \texttt{artifacts/track\_b/transcender\_track\_b\_benchmark.json}:
   Track~B per-prompt and aggregate metrics for draft-only, full-depth, cascade, and Track~A comparison.

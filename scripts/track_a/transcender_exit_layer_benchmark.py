@@ -1,9 +1,14 @@
 """
-Warmup-corrected exit-layer comparison benchmark for Transcender.
+Warmup-corrected Track A exit-layer frontier benchmark for Transcender.
 
 Purpose:
-  Compare the current layer-22 top1_agree frontier against moving the same
-  agreement-aware family one layer deeper to layer 23.
+  Measure the local penultimate-layer frontier on the supported sparse-MoE
+  families:
+    - GPT-OSS 20B (`gpt_oss`)
+    - Qwen3-30B-A3B (`qwen3_moe`)
+
+  The script emits per-prompt and aggregate metrics for the configured policy
+  set and its matched full-depth control.
 """
 
 from __future__ import annotations
@@ -11,7 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -22,8 +27,10 @@ from mlx_lm.sample_utils import make_sampler
 from transcender_engine import (
     GptOssConfig,
     MLXDynamicExpertEngine,
+    Qwen3MoeConfig,
     apply_harmony_template,
     build_harmony_messages,
+    load_mlx_model,
     load_resolved_mlx_model,
 )
 
@@ -43,11 +50,28 @@ P3_PROMPT_ID = "P3"
 MEANINGFUL_SAVINGS_THRESHOLD = 0.10
 
 PROMPTS = [
+    # --- Original prompts (P1-P5) ---
     "Explain quantum entanglement in simple terms.",
     "Summarize why the French Revolution was historically important.",
     "Write a short explanation of recursion for a beginner programmer.",
     "Explain the difference between TCP and UDP in plain English.",
     "Describe what photosynthesis does.",
+    # --- Code/technical (P6-P7) ---
+    "Write a Python function that checks if a string is a palindrome.",
+    "Explain what a hash table is and when you would use one.",
+    # --- Reasoning/logic (P8-P9) ---
+    "A farmer has 17 sheep. All but 9 run away. How many are left and why?",
+    "If it takes 5 machines 5 minutes to make 5 widgets, how long would it take 100 machines to make 100 widgets?",
+    # --- Creative/open-ended (P10-P11) ---
+    "Write the opening paragraph of a mystery story set in a library.",
+    "Describe a sunset to someone who has never seen one.",
+    # --- Short-answer/factual (P12-P14) ---
+    "What is the capital of Australia?",
+    "What does the HTTP status code 404 mean?",
+    "Name three noble gases.",
+    # --- List/structured output (P15-P16) ---
+    "List five common sorting algorithms and one sentence about each.",
+    "List the planets of the solar system in order from the Sun.",
 ]
 
 
@@ -163,17 +187,7 @@ def build_engine(
     spec: PolicySpec,
     memory_limit_gb: float,
 ) -> MLXDynamicExpertEngine:
-    config = GptOssConfig(
-        hard_exit_layer=spec.config.hard_exit_layer,
-        entropy_threshold=spec.config.entropy_threshold,
-        enable_logit_blending=spec.config.enable_logit_blending,
-        blending_confidence_threshold=spec.config.blending_confidence_threshold,
-        blend_alpha=spec.config.blend_alpha,
-        confidence_signal=spec.config.confidence_signal,
-        blend_alpha_mode=spec.config.blend_alpha_mode,
-        blend_strategy=spec.config.blend_strategy,
-        memory_limit_gb=memory_limit_gb,
-    )
+    config = replace(spec.config, memory_limit_gb=memory_limit_gb)
     return MLXDynamicExpertEngine(
         model=model,
         tokenizer=tokenizer,
@@ -264,26 +278,160 @@ def print_summary(payload: Dict[str, Any], output_path: str):
         )
     print("\nRecommendation")
     print(f"Best config: {payload['ranking_summary']['best_config']}")
-    print(f"Layer 23 beats layer 22: {payload['ranking_summary']['layer23_beats_layer22']}")
+    print(f"Full depth beats control: {payload['ranking_summary']['full_depth_beats_control']}")
     print(
-        f"Layer 23 gain justifies savings loss: "
-        f"{payload['ranking_summary']['layer23_gain_justifies_savings_loss']}"
+        f"Full depth gain justifies savings loss: "
+        f"{payload['ranking_summary']['full_depth_gain_justifies_savings_loss']}"
     )
+
+
+def _qwen3_top1_agree(exit_layer: int) -> Qwen3MoeConfig:
+    return Qwen3MoeConfig(
+        hard_exit_layer=exit_layer,
+        entropy_threshold=-1.0,
+        enable_logit_blending=True,
+        blending_confidence_threshold=0.035,
+        blend_alpha=0.10,
+        confidence_signal="entropy",
+        blend_alpha_mode="fixed",
+        blend_strategy="top1_agree",
+    )
+
+
+QWEN3_POLICY_SPECS = [
+    PolicySpec(
+        key="L40_top1_agree",
+        label="L40_top1_agree",
+        description="Aggressive probe (7 layers skipped).",
+        hypothesis="Tests whether a deeper skip budget exists on Qwen3-30B-A3B.",
+        dynamic=True,
+        config=_qwen3_top1_agree(40),
+    ),
+    PolicySpec(
+        key="L44_top1_agree",
+        label="L44_top1_agree",
+        description="Moderate exit (3 layers skipped).",
+        hypothesis="Tests quality at a mid-range exit point.",
+        dynamic=True,
+        config=_qwen3_top1_agree(44),
+    ),
+    PolicySpec(
+        key="L45_top1_agree",
+        label="L45_top1_agree",
+        description="One below penultimate (2 layers skipped).",
+        hypothesis="Tests the frontier boundary one step below the primary candidate.",
+        dynamic=True,
+        config=_qwen3_top1_agree(45),
+    ),
+    PolicySpec(
+        key="L46_top1_agree",
+        label="L46_top1_agree",
+        description="Penultimate exit — primary Qwen3 frontier candidate.",
+        hypothesis="Analogous to GPT-OSS L22: skip exactly one layer.",
+        dynamic=True,
+        config=_qwen3_top1_agree(46),
+    ),
+    PolicySpec(
+        key="L47_full_depth_reference",
+        label="L47_full_depth_reference",
+        description="Full-depth control reference for Qwen3-30B-A3B.",
+        hypothesis="Full depth should recover exact match 1.000 as sanity gate.",
+        dynamic=False,
+        config=Qwen3MoeConfig(
+            hard_exit_layer=47,
+            entropy_threshold=-1.0,
+            enable_logit_blending=False,
+        ),
+    ),
+]
+
+GPT_OSS_POLICY_SPECS = [
+    PolicySpec(
+        key="L20_top1_agree",
+        label="L20_top1_agree",
+        description="Most aggressive valid exit (gate_activation_layer floor).",
+        hypothesis="L20 is the earliest layer where the entropy gate can fire. Tests the mechanism at its limit.",
+        dynamic=True,
+        config=GptOssConfig(
+            hard_exit_layer=20,
+            entropy_threshold=-1.0,
+            enable_logit_blending=True,
+            blending_confidence_threshold=0.035,
+            blend_alpha=0.10,
+            confidence_signal="entropy",
+            blend_alpha_mode="fixed",
+            blend_strategy="top1_agree",
+        ),
+    ),
+    PolicySpec(
+        key="L21_top1_agree",
+        label="L21_top1_agree",
+        description="One layer below current best. Fills the L20-L22 gap.",
+        hypothesis="If L21 ~ L22, the frontier is a stable band. If L21 << L22, the frontier is narrow.",
+        dynamic=True,
+        config=GptOssConfig(
+            hard_exit_layer=21,
+            entropy_threshold=-1.0,
+            enable_logit_blending=True,
+            blending_confidence_threshold=0.035,
+            blend_alpha=0.10,
+            confidence_signal="entropy",
+            blend_alpha_mode="fixed",
+            blend_strategy="top1_agree",
+        ),
+    ),
+    PolicySpec(
+        key="L22_top1_agree",
+        label="L22_top1_agree",
+        description="Current layer-22 frontier control.",
+        hypothesis="Agreement-aware blend at layer 22 is the current best adaptive-quality frontier.",
+        dynamic=True,
+        config=GptOssConfig(
+            hard_exit_layer=22,
+            entropy_threshold=-1.0,
+            enable_logit_blending=True,
+            blending_confidence_threshold=0.035,
+            blend_alpha=0.10,
+            confidence_signal="entropy",
+            blend_alpha_mode="fixed",
+            blend_strategy="top1_agree",
+        ),
+    ),
+    PolicySpec(
+        key="L23_full_depth_reference",
+        label="L23_full_depth_reference",
+        description="Full-depth control reference (N=15 update).",
+        hypothesis="Moving to the final layer should recover full-depth quality but remove adaptive savings.",
+        dynamic=False,
+        config=GptOssConfig(
+            hard_exit_layer=23,
+            entropy_threshold=-1.0,
+            enable_logit_blending=False,
+        ),
+    ),
+]
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default=DEFAULT_MODEL_PATH)
+    parser.add_argument("--model-type", choices=["gpt_oss", "qwen3_moe"], default="gpt_oss")
     parser.add_argument("--output", default=DEFAULT_OUTPUT_PATH)
     parser.add_argument("--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS)
     parser.add_argument("--consistency-tokens", type=int, default=DEFAULT_CONSISTENCY_TOKENS)
     parser.add_argument("--memory-limit-gb", type=float, default=30.0)
     args = parser.parse_args()
 
-    model, tokenizer, resolved_model_path = load_resolved_mlx_model(
-        args.model,
-        lazy=True,
-    )
+    if args.model_type == "qwen3_moe":
+        model, tokenizer, resolved_model_path = load_mlx_model(args.model, lazy=True)
+        policy_specs = QWEN3_POLICY_SPECS
+        control_key = "L46_top1_agree"
+        full_depth_layer = 47
+    else:
+        model, tokenizer, resolved_model_path = load_resolved_mlx_model(args.model, lazy=True)
+        policy_specs = GPT_OSS_POLICY_SPECS
+        control_key = "L22_top1_agree"
+        full_depth_layer = 23
 
     prompt_defs = []
     for prompt_index, user_prompt in enumerate(PROMPTS, start=1):
@@ -307,72 +455,6 @@ def main():
                 "prompt_ids": tokenizer.encode(prompt_text),
             }
         )
-
-    policy_specs = [
-        PolicySpec(
-            key="L22_top1_agree",
-            label="L22_top1_agree",
-            description="Current layer-22 frontier control.",
-            hypothesis="Agreement-aware blend at layer 22 is the current best adaptive-quality frontier.",
-            dynamic=True,
-            config=GptOssConfig(
-                hard_exit_layer=22,
-                entropy_threshold=-1.0,
-                enable_logit_blending=True,
-                blending_confidence_threshold=0.035,
-                blend_alpha=0.10,
-                confidence_signal="entropy",
-                blend_alpha_mode="fixed",
-                blend_strategy="top1_agree",
-            ),
-        ),
-        PolicySpec(
-            key="L23_full_depth_reference",
-            label="L23_full_depth_reference",
-            description="Near-control reference at layer 23/full depth.",
-            hypothesis="Moving to the final layer should recover full-depth quality but remove adaptive savings.",
-            dynamic=False,
-            config=GptOssConfig(
-                hard_exit_layer=23,
-                entropy_threshold=-1.0,
-                enable_logit_blending=False,
-            ),
-        ),
-        PolicySpec(
-            key="L23_top1_agree",
-            label="L23_top1_agree",
-            description="Agreement-aware family shifted one layer deeper.",
-            hypothesis="If the remaining failure is a layer-22 representation limit, using layer 23 should improve P3, but may drift toward full depth.",
-            dynamic=True,
-            config=GptOssConfig(
-                hard_exit_layer=23,
-                entropy_threshold=-1.0,
-                enable_logit_blending=True,
-                blending_confidence_threshold=0.035,
-                blend_alpha=0.10,
-                confidence_signal="entropy",
-                blend_alpha_mode="fixed",
-                blend_strategy="top1_agree",
-            ),
-        ),
-        PolicySpec(
-            key="L23_top1_agree_low_alpha",
-            label="L23_top1_agree_low_alpha",
-            description="Conservative layer-23 agreement-aware variant.",
-            hypothesis="A conservative alpha at layer 23 should not matter if the path has already collapsed to full depth; include it to verify that explicitly.",
-            dynamic=True,
-            config=GptOssConfig(
-                hard_exit_layer=23,
-                entropy_threshold=-1.0,
-                enable_logit_blending=True,
-                blending_confidence_threshold=0.035,
-                blend_alpha=0.05,
-                confidence_signal="entropy",
-                blend_alpha_mode="fixed",
-                blend_strategy="top1_agree",
-            ),
-        ),
-    ]
 
     engines = {
         spec.key: build_engine(
@@ -427,7 +509,7 @@ def main():
                     "text_preview": preview_text(stats["output_text"]),
                     "comparison": comparison,
                     "consistency": consistency,
-                    "avg_layers_saved": max(24.0 - stats.get("avg_layers", 24.0), 0.0),
+                    "avg_layers_saved": max(float(engine.num_layers) - stats.get("avg_layers", float(engine.num_layers)), 0.0),
                 }
             )
 
@@ -465,13 +547,13 @@ def main():
             }
         )
 
-    control = next(item for item in config_results if item["key"] == "L22_top1_agree")
+    control = next(item for item in config_results if item["key"] == control_key)
     for item in config_results:
         item["exit_layer_classification"] = classify_exit_shift(
             item["aggregate_excluding_warmup"],
             control,
         )
-        item["delta_vs_layer22_control"] = {
+        item["delta_vs_control"] = {
             "avg_exact_match_rate": (
                 item["aggregate_excluding_warmup"]["avg_exact_match_rate"]
                 - control["aggregate_excluding_warmup"]["avg_exact_match_rate"]
@@ -494,31 +576,32 @@ def main():
         }
 
     ranked = sorted(config_results, key=quality_sort_key, reverse=True)
-    layer23_candidates = [
-        item for item in config_results if item["settings"]["hard_exit_layer"] == 23
+    full_depth_candidates = [
+        item for item in config_results if item["settings"]["hard_exit_layer"] == full_depth_layer
     ]
-    best_layer23 = sorted(layer23_candidates, key=quality_sort_key, reverse=True)[0]
+    best_full_depth = sorted(full_depth_candidates, key=quality_sort_key, reverse=True)[0]
     ranking_summary = {
         "best_config": ranked[0]["label"],
-        "best_layer23_config": best_layer23["label"],
-        "layer23_beats_layer22": (
-            best_layer23["aggregate_excluding_warmup"]["avg_exact_match_rate"]
+        "best_full_depth_config": best_full_depth["label"],
+        "full_depth_beats_control": (
+            best_full_depth["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             > control["aggregate_excluding_warmup"]["avg_exact_match_rate"]
         ),
-        "layer23_improves_p3": (
-            best_layer23["p3_summary"]["exact_match_rate"]
+        "full_depth_improves_p3": (
+            best_full_depth["p3_summary"]["exact_match_rate"]
             > control["p3_summary"]["exact_match_rate"]
         ),
-        "layer23_gain_justifies_savings_loss": (
-            best_layer23["aggregate_excluding_warmup"]["avg_exact_match_rate"]
+        "full_depth_gain_justifies_savings_loss": (
+            best_full_depth["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             > control["aggregate_excluding_warmup"]["avg_exact_match_rate"]
-            and best_layer23["aggregate_excluding_warmup"]["avg_avg_layers_saved"] >= MEANINGFUL_SAVINGS_THRESHOLD
+            and best_full_depth["aggregate_excluding_warmup"]["avg_avg_layers_saved"] >= MEANINGFUL_SAVINGS_THRESHOLD
         ),
         "quality_ranking": [item["label"] for item in ranked],
     }
 
     payload = {
         "experiment": "transcender_exit_layer_benchmark",
+        "model_type": args.model_type,
         "resolved_model_path": resolved_model_path,
         "settings": {
             "max_new_tokens": args.max_new_tokens,

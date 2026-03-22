@@ -20,11 +20,11 @@ This document explains the top-level structure and classifies every major compon
 
 | Directory | Contents |
 |-----------|----------|
-| `transcender/` | Installable Python package: `TranscenderModel`, `SonRouter`, `SonRoutingLoss`, GPT-OSS engine components |
+| `transcender/` | Installable Python package: `TranscenderModel`, `SonRouter`, `SonRoutingLoss`, and MLX engine components used by the current Track A sparse-MoE runs |
 | `scripts/` | All experiment and benchmark scripts, organized by track |
 | `artifacts/` | All JSON result files, organized by track |
-| `paper/` | LaTeX draft, bibliography, figures, whitepaper narratives |
-| `docs/` | Benchmark summary, roadmap, next experiments, supplementary chapters |
+| `paper/` | Canonical LaTeX draft, bibliography, figures, and retained markdown whitepapers |
+| `docs/` | Benchmark summary, archived roadmap/backlog notes, supplementary chapters |
 | `models/` | Son Router checkpoint files (GPT-2 PoC, ~195 KB each) |
 | `tests/` | pytest smoke tests for the `transcender` package |
 
@@ -32,13 +32,13 @@ This document explains the top-level structure and classifies every major compon
 
 ## scripts/
 
-### scripts/track_a/ — Canonical
+### scripts/track_a/ — Canonical Sparse-MoE Benchmarks
 
 | File | Purpose |
 |------|---------|
-| `transcender_engine.py` | MLX runtime engine for GPT-OSS 20B with entropy-gated exit |
-| `transcender_exit_layer_benchmark.py` | L22/L23 exit layer comparison benchmark |
-| `transcender_top1_agree_benchmark.py` | Blend strategy benchmark (top1_agree vs naive blend) |
+| `transcender_engine.py` | MLX runtime engine for GPT-OSS 20B and Qwen3-30B-A3B with entropy-gated exit |
+| `transcender_exit_layer_benchmark.py` | Exit-layer frontier benchmark for GPT-OSS (`gpt_oss`) and Qwen3 (`qwen3_moe`) |
+| `transcender_top1_agree_benchmark.py` | Earlier GPT-OSS blend-strategy benchmark retained for reference |
 | `transcender_recon.py` | GPT-OSS KL reconnaissance depth profiler |
 | `transcender_server.py` | FastAPI inference server |
 | `transcender_20b_scaffold.py` | GPT-OSS 20B model scaffold and configuration |
@@ -48,7 +48,7 @@ This document explains the top-level structure and classifies every major compon
 | File | Purpose |
 |------|---------|
 | `transcender_track_b_cascade.py` | Cross-model cascade engine (Gemma draft + GPT-OSS verify) |
-| `transcender_track_b_benchmark.py` | Track A vs Track B comparison benchmark |
+| `transcender_track_b_benchmark.py` | Track B benchmark for draft-only, full-depth, and naive cascade modes |
 
 ### scripts/track_c/ — Validated Follow-Up
 
@@ -90,37 +90,39 @@ This document explains the top-level structure and classifies every major compon
 
 ## artifacts/
 
-### artifacts/track_a/ — Canonical
+### artifacts/track_a/ — Current Canonical + Retained Reference
 
-| File | Supports Paper |
-|------|----------------|
-| `transcender_exit_layer_benchmark.json` | Yes — Track A Tables 1 |
-| `transcender_top1_agree_benchmark.json` | Yes — Track A blend comparison |
-| `hard_exit_ablation.json` | Supporting — hard exit ablation |
-| `hard_exit_ablation_post_fix.json` | Supporting — post-fix ablation |
-| `postfix_dynamic_benchmark.json` | Supporting — dynamic benchmark |
+| File | Status | Purpose |
+|------|--------|---------|
+| `transcender_exit_layer_benchmark_n15.json` | Paper-supporting | Current GPT-OSS 20B N=15 exit-layer frontier artifact |
+| `qwen3_30b_a3b_exit_layer_benchmark.json` | Paper-supporting | Current Qwen3-30B-A3B N=15 cross-model MoE frontier artifact |
+| `transcender_exit_layer_benchmark.json` | Historical / superseded | Earlier GPT-OSS exit-layer benchmark superseded by `_n15` |
+| `transcender_top1_agree_benchmark.json` | Supplementary | Earlier GPT-OSS blend-strategy comparison retained for reference |
+| `hard_exit_ablation.json` | Historical / supplementary | GPT-OSS hard-exit ablation (pre-fix) |
+| `hard_exit_ablation_post_fix.json` | Historical / supplementary | GPT-OSS hard-exit ablation (post-fix) |
+| `postfix_dynamic_benchmark.json` | Historical / supplementary | Earlier GPT-OSS dynamic benchmark |
 
 ### artifacts/track_b/ — Negative Baseline
 
 | File | Supports Paper |
 |------|----------------|
-| `transcender_track_b_benchmark.json` | Yes — Track B Table 2 |
+| `transcender_track_b_benchmark.json` | Yes — Track B table and scoped baseline claims |
 
 ### artifacts/track_c/ — Validated (Gemma)
 
 | File | Supports Paper |
 |------|----------------|
-| `transcender_track_c_gemma_results.json` | Yes — Track C Table 3 |
-| `transcender_track_c_gemma_selective_depth_results.json` | Yes — Track C Table 4 (L31) |
-| `transcender_track_c_gemma_selective_depth_L20_results.json` | Yes — Track C Table 5 (L20) |
-| `gemma_kl_profile.json` | Yes — KL profiling section |
+| `transcender_track_c_gemma_results.json` | Yes — Gemma adaptive benchmark |
+| `transcender_track_c_gemma_selective_depth_results.json` | Yes — Gemma L31 selective-depth validation |
+| `transcender_track_c_gemma_selective_depth_L20_results.json` | Yes — Gemma L20 selective-depth probe |
+| `gemma_kl_profile.json` | Yes — Gemma KL profiling section |
 
 ### artifacts/dense_followup/ — Validated + Exploratory
 
 | File | Supports Paper |
 |------|----------------|
-| `transcender_track_c_llama3_8b_results.json` | Yes — Track C Table 6 (multi-family) |
-| `transcender_track_c_mistral7b_results.json` | Yes — Track C Table 6 (multi-family) |
+| `transcender_track_c_llama3_8b_results.json` | Yes — Llama dense-family validation |
+| `transcender_track_c_mistral7b_results.json` | Yes — Mistral dense-family validation |
 | `transcender_track_c_gemma_advanced_probe_L20_results.json` | Exploratory — Gemma L20 advanced probe |
 | `transcender_track_c_llama3_8b_family_sensitive_probe.json` | Exploratory — Llama family-sensitive probe |
 | `transcender_track_c_llama3_8b_cache_aware_probe.json` | Exploratory — Llama cache-aware probe |

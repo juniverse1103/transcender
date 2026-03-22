@@ -1,4 +1,6 @@
-# Chapter 3: The Subspace Paradox
+# Chapter 3: Cross-Layer Subspace Mismatch
+
+> Historical filename retained for continuity. The current public-release terminology is **Subspace Mismatch**, not "Subspace Paradox".
 
 ## Why Early-Exit Hidden States Cannot Be Blended with Deep Hidden States
 
@@ -14,7 +16,7 @@ When we implemented hidden-state blending in SGA, the router immediately collaps
 
 This was not a hyperparameter problem. It was a *geometric* problem.
 
-### 3.2 The Subspace Separation Proof
+### 3.2 The Subspace Separation Evidence
 
 To understand the failure, we collected 5,120 token representations from WikiText-2 at two points in GPT-2's forward pass:
 
@@ -66,4 +68,4 @@ This reframes early exit not as "skipping computation" but as *recognizing that 
 
 ---
 
-*The subspace paradox reveals that early-exit routing cannot operate in hidden-state space. Chapter 4 presents the solution: logit-space blending, where both pathways' outputs are projected into a shared vocabulary space before combination.*
+*The subspace mismatch reveals that early-exit routing cannot operate in hidden-state space. Chapter 4 presents the solution: logit-space blending, where both pathways' outputs are projected into a shared vocabulary space before combination.*

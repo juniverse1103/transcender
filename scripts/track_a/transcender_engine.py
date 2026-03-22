@@ -1,43 +1,21 @@
 """
-TranscenderEngine — Production-Grade Dynamic Routing for GPT-OSS 20B
+TranscenderEngine — MLX sparse-MoE selective-exit engine.
 
-Implements per-token early exit with physical layer skipping on Apple MLX.
+Implements entropy-gated early exit with physical layer skipping on Apple MLX.
+The current Track A benchmark path supports:
+  - GPT-OSS 20B (`gpt_oss`)
+  - Qwen3-30B-A3B (`qwen3_moe`)
 
-Architecture (from openai/gpt-oss-20b config.json):
-  ┌─────────────────────────────────────────────────────────────────┐
-  │ Model: GptOssForCausalLM (gpt_oss)                             │
-  │ Layers: 24 (alternating sliding/full attention)                 │
-  │ Hidden: 2880, Heads: 64, KV-Heads: 8 (GQA 8:1)               │
-  │ Experts: 32 local, top-4 active per token                      │
-  │ Vocab: 201,088 | Context: 131K (YaRN RoPE)                    │
-  │ Quantization: MXFP4 (attn/router/embed/lm_head excluded)      │
-  └─────────────────────────────────────────────────────────────────┘
+The release-facing interpretation of `avg_layers_saved` is conservative:
+it is the mean number of layers physically skipped per generated token, not a
+general compute-savings percentage.
 
-Two-Level Routing Hierarchy:
-  Level 1 (Width — built-in):  MoE Router selects 4/32 experts per token
-  Level 2 (Depth — Transcender): Son Router selects layer depth per token
-
-  These are ORTHOGONAL:
-    MoE router:  "Which 4 of 32 experts?" (width-axis sparsity, 87.5%)
-    Son router:  "Stop at Layer 12 or continue to 24?" (depth-axis sparsity, 50%)
-    Compound:    width × depth → up to 93.75% total sparsity
-
-Physical Layer Skipping Strategy:
-  During autoregressive generation, each new token is evaluated by the
-  Son Router at Layer 12. If exit_prob > threshold, layers 13-24 are
-  PHYSICALLY SKIPPED (never evaluated by MLX's lazy graph). The KV-cache
-  for layers 13-24 is never populated for exited tokens.
-
-Subspace Paradox Mitigation:
-  All blending occurs in LOGIT SPACE via the frozen final_norm + lm_head.
-  Hidden-state blending is prohibited (4.11x geometric separation proven).
+Subspace mismatch mitigation:
+  all composition occurs in logit space via the model's final normalization and
+  LM head; hidden-state blending is intentionally avoided.
 
 Prerequisites:
     pip install mlx mlx-lm
-    # Download model:
-    huggingface-cli download openai/gpt-oss-20b
-    # Or via Ollama:
-    ollama pull gpt-oss:20b
 """
 
 # ═══════════════════════════════════════════════════════════════════
@@ -176,6 +154,15 @@ def load_resolved_mlx_model(
     return model, tokenizer, resolved_model_path
 
 
+def load_mlx_model(model_path: str, lazy: bool = True):
+    """Load any MLX model directly without GPT-OSS path resolution."""
+    from mlx_lm import load as mlx_load
+
+    resolved = str(Path(model_path).expanduser())
+    model, tokenizer = mlx_load(resolved, lazy=lazy)
+    return model, tokenizer, resolved
+
+
 def load_resolved_transformers_model(model_path: str):
     """
     Load GPT-OSS through transformers after resolving sparse metadata placeholders.
@@ -224,12 +211,20 @@ def apply_harmony_template(
     if not hasattr(tokenizer, "apply_chat_template"):
         raise ValueError("Tokenizer does not support apply_chat_template().")
 
-    prompt = tokenizer.apply_chat_template(
-        messages,
-        tokenize=False,
-        add_generation_prompt=add_generation_prompt,
-        reasoning_effort=reasoning_effort,
-    )
+    try:
+        prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=add_generation_prompt,
+            reasoning_effort=reasoning_effort,
+        )
+    except TypeError:
+        # Non-GPT-OSS tokenizers don't accept reasoning_effort
+        prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize=False,
+            add_generation_prompt=add_generation_prompt,
+        )
     return prompt, messages
 
 @dataclass
@@ -301,6 +296,69 @@ class GptOssConfig:
     @property
     def active_params_b(self) -> float:
         return 3.6
+
+
+@dataclass
+class Qwen3MoeConfig:
+    """Architecture constants for Qwen3-30B-A3B (48-layer MoE, 128 experts, top-8)."""
+    model_type: str = "qwen3_moe"
+    num_hidden_layers: int = 48
+    hidden_size: int = 2048
+    num_attention_heads: int = 32
+    num_key_value_heads: int = 4
+    head_dim: int = 64
+    intermediate_size: int = 6144
+    vocab_size: int = 151936
+    num_local_experts: int = 128
+    num_experts_per_tok: int = 8
+    max_position_embeddings: int = 40960
+    rope_theta: float = 1000000.0
+    hidden_act: str = "silu"
+    rms_norm_eps: float = 1e-6
+    sliding_window: int = 0
+    attention_bias: bool = False
+    tie_word_embeddings: bool = False
+    router_aux_loss_coef: float = 0.0
+    swiglu_limit: float = 7.0
+    soft_skip_start_layer: int = 35
+    hard_exit_layer: int = 46
+    entropy_threshold: float = 0.20
+    min_entropy_streak: int = 2
+    enable_logit_blending: bool = False
+    blending_confidence_threshold: float = 0.05
+    blend_alpha: float = 0.10
+    confidence_signal: str = "entropy"
+    margin_threshold: float = 0.08
+    blend_alpha_mode: str = "fixed"
+    blend_alpha_sigmoid_scale: float = 20.0
+    blend_entropy_sigmoid_scale: float = 20.0
+    blend_alpha_margin_scale: float = 1.0
+    fallback_to_full_depth_on_ambiguity: bool = False
+    blend_strategy: str = "full_vocab"
+    blend_top_k: int = 5
+    anchor_alpha_scale: float = 0.25
+    prefill_step_size: int = 2048
+    memory_limit_gb: float = 30.0
+    cache_cleanup_interval: int = 32
+    target_peak_memory_gb: float = 22.0
+
+    layer_types: list = field(default_factory=lambda: [
+        "full_attention" for _ in range(48)
+    ])
+
+    mxfp4_excluded: list = field(default_factory=lambda: [])
+
+    @property
+    def gqa_ratio(self) -> int:
+        return self.num_attention_heads // self.num_key_value_heads
+
+    @property
+    def total_params_b(self) -> float:
+        return 30.5
+
+    @property
+    def active_params_b(self) -> float:
+        return 3.3
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -626,7 +684,10 @@ if HAS_MLX:
                 return self.model.make_cache()
             if hasattr(self.model, "model") and hasattr(self.model.model, "make_cache"):
                 return self.model.model.make_cache()
-            raise ValueError("The supplied MLX model does not expose make_cache().")
+            # Fallback: create a default KVCache per layer (for models like Qwen3
+            # that don't expose make_cache but work with standard KV caches).
+            from mlx_lm.models.cache import KVCache
+            return [KVCache() for _ in range(self.num_layers)]
 
         def _cache_nbytes(self, cache) -> int:
             return int(
@@ -2429,7 +2490,7 @@ if HAS_TORCH:
                 hidden_states = self._run_layer(i, hidden_states)
                 layer_counts[~exit_mask] = i + 1
 
-            # ── Logit-Space Blending (Subspace Paradox mitigation) ──
+            # ── Logit-Space Blending (Subspace mismatch mitigation) ──
             # Project BOTH pathways through the SAME frozen norm + lm_head.
             # This is the ONLY valid blending protocol — hidden-state
             # blending across layers is geometrically invalid (4.11x separation).

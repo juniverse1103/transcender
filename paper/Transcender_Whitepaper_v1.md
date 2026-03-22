@@ -1,6 +1,8 @@
 # Transcender: Ending the Fixed-Depth Era via Symbiotic Logit-Blending
 
-**Version 1.0 — Proof of Concept**
+**Version 1.0 — Historical GPT-2 Proof of Concept**
+
+> **Status:** Historical proof-of-concept document retained for archival context. It predates the current sparse-MoE and dense-family release narrative and uses earlier terminology.
 
 ---
 

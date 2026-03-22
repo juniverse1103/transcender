@@ -1,6 +1,8 @@
-# Next Experiments — Post-Track C Selective-Depth Follow-Up
+# Next Experiments — Archived Dense Selective-Depth Backlog
 
-**Date:** 2026-03-22 | **Status:** Proposed
+**Date:** 2026-03-23 | **Status:** Optional post-release research notes
+
+> **Release note:** This file is archival. The GPT-OSS N=15 follow-up, the Qwen3 Track A reproduction, and the dense follow-up are complete. None of the ideas below are required for public release or arXiv support, and dense work is not part of the current release-critical path.
 
 ---
 
@@ -9,7 +11,7 @@
 Track C demonstrated that fixed early exit is catastrophic on Gemma 3 4B-IT:
 
 - Exiting at L31: **19.8% exact match** with only 6% layers saved
-- Compare GPT-OSS Track A: **0.969 exact match** with real adaptive layer skipping
+- Compare the tested sparse MoE references: GPT-OSS L22 `top1_agree` at **0.941 exact match** with `avg_layers_saved = 0.528`, and Qwen3 L46 `top1_agree` at **0.868 exact match** with `avg_layers_saved = 0.735`
 
 The root cause is the **KL plateau** observed in Gemma's depth profile: layers 20-29 perform compositional work that temporarily *increases* logit divergence from the final output. Any fixed cutoff that enters this plateau skips the resolution phase (L30-L33) that resolves compositional ambiguity into coherent output.
 
@@ -60,9 +62,9 @@ The following approaches have been exhausted or are not productive for dense-mod
 - **Repeating L31 selective-depth with the same mechanism.** This has now been measured. The runtime was correct, but it did not beat full depth and stayed near fixed-exit quality.
 - **Repeating L20 selective-depth with the same margin/entropy mechanism.** This has also now been measured. The larger skip budget did not recover a practical frontier because quality collapsed and replay/control overhead still consumed the gain.
 
-### What IS the Next Step
+### If Dense Work Is Ever Reopened
 
-The next direction is still **selective-depth**, but not as a repeat of the current L31 or L20 mechanisms. The completed probes narrow the question: future dense-model work should focus on better continuation rules and lower continuation overhead, not on moving the checkpoint earlier by itself.
+The archive below records the only plausible follow-up directions if dense selective-depth is ever revisited. The completed probes already narrowed the question: any future dense-model work would need better continuation rules and lower continuation overhead, not a re-run of the current L31 or L20 mechanisms.
 
 Concretely, the next dense-model work should focus on:
 - deeper early checkpoints only if they are paired with a stronger, family-sensitive continuation criterion

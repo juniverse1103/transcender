@@ -1,7 +1,9 @@
 # Transcender: Redefining Adaptive-Depth Inference via Agreement-Aware Logit Blending
 
-**Version 2.0 — Multi-Track Empirical Validation**
+**Version 2.0 — Historical Superseded Narrative**
 **Date:** 2026-03-22
+
+> **Status:** Historical markdown narrative retained for auditability. It predates the final release-aligned paper state and still reflects earlier Track A framing and terminology. Use `paper/main.tex` and `README.md` for the current public-release narrative.
 
 ---
 

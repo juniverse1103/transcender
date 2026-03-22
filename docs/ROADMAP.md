@@ -1,6 +1,8 @@
 # Transcender / SGA-POC — Execution Roadmap
 
-**Date:** 2026-03-22 | **Stage:** Research PoC → Usable Runtime
+**Date:** 2026-03-23 | **Status:** Archived working roadmap
+
+> **Release note:** This file is retained as an execution log, not the current public-release checklist. The GPT-OSS N=15 follow-up, the Qwen3-30B-A3B Track A reproduction, the Track B baseline, and the dense follow-up are complete. Public-release remaining work is editorial consistency and arXiv packaging; none of the proposed experiments below are required before release.
 
 ---
 
@@ -506,7 +508,7 @@ Draft model auto-detection searches common local paths if `--draft-model` is not
 
 ### Track B Result (2026-03-22)
 
-Track B did not beat Track A for this model pair. The naive cascade achieved 0.28 TPS and 0.026 exact match versus Track A's 20.22 TPS and 0.969 exact match. Memory was 7.23 GB higher (20.19 vs 12.96 GB). The vocabulary/distribution mismatch between Gemma and GPT-OSS destroyed the acceptance rate. These deltas are specific to this naive cascade implementation, this architecturally mismatched model pair, and this local Apple MLX runtime; they do not characterize cascade strategies in general. Track B remains a completed negative comparison baseline.
+Track B did not beat Track A for this model pair. The naive cascade achieved 0.28 TPS and 0.026 exact match. The current public-release Track A references are GPT-OSS L22 `top1_agree` at 0.941 exact match / 21.1 TPS / 0.528 `avg_layers_saved` and Qwen3 L46 `top1_agree` at 0.868 exact match / 34.5 TPS / 0.735 `avg_layers_saved`. The vocabulary/distribution mismatch between Gemma and GPT-OSS destroyed the acceptance rate. These deltas are specific to this naive cascade implementation, this architecturally mismatched model pair, and this local Apple MLX runtime; they do not characterize cascade strategies in general. Track B remains a completed negative comparison baseline.
 
 ---
 
@@ -555,7 +557,7 @@ A methodology validation track testing whether Transcender's depth-frontier obse
 
 ### Already Valuable (Right Now)
 
-- **The Subspace Paradox documentation** is a genuine contribution applicable to all early-exit transformer architectures. Should be submitted as a short preprint. No further experiments needed.
+- **The subspace mismatch documentation** is a genuine contribution applicable to all early-exit transformer architectures. No further experiments are required for the current release package.
 - **Logit-space blending** is the correct implementation pattern. Teams implementing MoD or early-exit and using hidden-state blending are making a verifiable error.
 - **`TranscenderModel` routing diagnostics** — exit_probs, layer_counts, son_scores on any HF causal LM — are useful for model interpretability today, independent of any efficiency claim.
 
