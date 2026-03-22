@@ -1,0 +1,1936 @@
+{
+  "experiment": "transcender_manual_baseline_equivalence_debug",
+  "resolved_model_path": "/Users/junson/.cache/huggingface/hub/models--openai--gpt-oss-20b/snapshots/6cee5e81ee83917806bbde320786a8fb61efebee",
+  "prompt": {
+    "system": "You are a helpful assistant.",
+    "user": "Explain quantum entanglement in simple terms.",
+    "reasoning_effort": "medium",
+    "rendered_harmony_prompt": "<|start|>system<|message|>You are ChatGPT, a large language model trained by OpenAI.\nKnowledge cutoff: 2024-06\nCurrent date: 2026-03-22\n\nReasoning: medium\n\n# Valid channels: analysis, commentary, final. Channel must be included for every message.<|end|><|start|>developer<|message|># Instructions\n\nYou are a helpful assistant.\n\n<|end|><|start|>user<|message|>Explain quantum entanglement in simple terms.<|end|><|start|>assistant",
+    "prompt_token_ids": [
+      200006,
+      17360,
+      200008,
+      3575,
+      553,
+      17554,
+      162016,
+      11,
+      261,
+      4410,
+      6439,
+      2359,
+      22203,
+      656,
+      7788,
+      17527,
+      558,
+      87447,
+      100594,
+      25,
+      220,
+      1323,
+      19,
+      12,
+      3218,
+      198,
+      6576,
+      3521,
+      25,
+      220,
+      1323,
+      21,
+      12,
+      3659,
+      12,
+      1709,
+      279,
+      30377,
+      289,
+      25,
+      14093,
+      279,
+      2,
+      13888,
+      18403,
+      25,
+      8450,
+      11,
+      49159,
+      11,
+      1721,
+      13,
+      21030,
+      2804,
+      413,
+      7360,
+      395,
+      1753,
+      3176,
+      13,
+      200007,
+      200006,
+      77944,
+      200008,
+      2,
+      68406,
+      279,
+      3575,
+      553,
+      261,
+      10297,
+      29186,
+      364,
+      200007,
+      200006,
+      1428,
+      200008,
+      176289,
+      48889,
+      1121,
+      516,
+      1254,
+      306,
+      4705,
+      5941,
+      13,
+      200007,
+      200006,
+      173781
+    ],
+    "prompt_length": 89,
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful assistant."
+      },
+      {
+        "role": "user",
+        "content": "Explain quantum entanglement in simple terms."
+      }
+    ]
+  },
+  "generation_settings": {
+    "max_new_tokens": 64,
+    "prefill_step_size": 2048,
+    "dynamic": false,
+    "sampler": "greedy_argmax_temp_0",
+    "logits_processors": null,
+    "soft_skip_status": "disabled by dynamic=False",
+    "hard_exit_status": "ignored by dynamic=False full-depth baseline"
+  },
+  "tokenizer": {
+    "eos_token_id": 200002,
+    "eos_token_ids": [
+      199999,
+      200002,
+      200012
+    ],
+    "bos_token_id": 199998,
+    "pad_token_id": 199999,
+    "unk_token_id": null,
+    "vocab_size": 199998
+  },
+  "eos_and_stop_handling": {
+    "shared_eos_ids": [
+      199999,
+      200002,
+      200012
+    ],
+    "manual_stops_on_eos": true,
+    "official_generate_step_stops_on_eos": false,
+    "official_harness_stops_on_eos": true,
+    "stop_token_suppression": "none",
+    "tokenizer_special_token_config_differs": false
+  },
+  "manual_baseline": {
+    "generated_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889,
+      1121,
+      516,
+      1254,
+      6462,
+      13,
+      51441,
+      39085,
+      566,
+      11,
+      8633,
+      484,
+      1920,
+      30285,
+      5143,
+      261,
+      2608,
+      11,
+      27666,
+      328,
+      1001,
+      29030,
+      33780,
+      290,
+      1273,
+      11,
+      860,
+      16107,
+      93258,
+      33495,
+      11686,
+      11,
+      5178,
+      13,
+      16835,
+      480,
+      4705,
+      13,
+      200007,
+      200006,
+      173781,
+      200005,
+      17196,
+      200008,
+      410,
+      170939,
+      1121,
+      516,
+      1254,
+      410,
+      382,
+      261,
+      28783,
+      889,
+      1374,
+      4322,
+      328
+    ],
+    "output_text": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-light communication, etc. Keep it simple.assistantfinal**Quantum entanglement** is a weird but real property of",
+    "ttft_s": 2.9972562910006673,
+    "elapsed_s": 5.573988083000586,
+    "generation_tps": 24.4495760853336,
+    "peak_memory_gb": 12.828567508608103,
+    "first_token_id": 200005,
+    "first_8_token_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889
+    ],
+    "first_64_token_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889,
+      1121,
+      516,
+      1254,
+      6462,
+      13,
+      51441,
+      39085,
+      566,
+      11,
+      8633,
+      484,
+      1920,
+      30285,
+      5143,
+      261,
+      2608,
+      11,
+      27666,
+      328,
+      1001,
+      29030,
+      33780,
+      290,
+      1273,
+      11,
+      860,
+      16107,
+      93258,
+      33495,
+      11686,
+      11,
+      5178,
+      13,
+      16835,
+      480,
+      4705,
+      13,
+      200007,
+      200006,
+      173781,
+      200005,
+      17196,
+      200008,
+      410,
+      170939,
+      1121,
+      516,
+      1254,
+      410,
+      382,
+      261,
+      28783,
+      889,
+      1374,
+      4322,
+      328
+    ],
+    "first_token_logits_top10": [
+      {
+        "rank": 1,
+        "token_id": 200005,
+        "logit": 43.25
+      },
+      {
+        "rank": 2,
+        "token_id": 200003,
+        "logit": 17.5
+      },
+      {
+        "rank": 3,
+        "token_id": 220,
+        "logit": 16.75
+      },
+      {
+        "rank": 4,
+        "token_id": 200008,
+        "logit": 15.5625
+      },
+      {
+        "rank": 5,
+        "token_id": 2322,
+        "logit": 14.0
+      },
+      {
+        "rank": 6,
+        "token_id": 12606,
+        "logit": 14.0
+      },
+      {
+        "rank": 7,
+        "token_id": 350,
+        "logit": 13.8125
+      },
+      {
+        "rank": 8,
+        "token_id": 126952,
+        "logit": 13.1875
+      },
+      {
+        "rank": 9,
+        "token_id": 49159,
+        "logit": 13.125
+      },
+      {
+        "rank": 10,
+        "token_id": 67971,
+        "logit": 13.0625
+      }
+    ],
+    "first_token_logprobs_top10": [
+      {
+        "rank": 1,
+        "token_id": 200005,
+        "logprob": 0.0
+      },
+      {
+        "rank": 2,
+        "token_id": 200003,
+        "logprob": -25.75
+      },
+      {
+        "rank": 3,
+        "token_id": 220,
+        "logprob": -26.5
+      },
+      {
+        "rank": 4,
+        "token_id": 200008,
+        "logprob": -27.75
+      },
+      {
+        "rank": 5,
+        "token_id": 2322,
+        "logprob": -29.25
+      },
+      {
+        "rank": 6,
+        "token_id": 12606,
+        "logprob": -29.25
+      },
+      {
+        "rank": 7,
+        "token_id": 350,
+        "logprob": -29.5
+      },
+      {
+        "rank": 8,
+        "token_id": 126952,
+        "logprob": -30.0
+      },
+      {
+        "rank": 9,
+        "token_id": 49159,
+        "logprob": -30.125
+      },
+      {
+        "rank": 10,
+        "token_id": 1127,
+        "logprob": -30.25
+      }
+    ],
+    "prefill_cache_debug": {
+      "prompt_tokens_processed": 88,
+      "cache": {
+        "total_layers": 24,
+        "total_nbytes": 8454144,
+        "total_gb": 0.00787353515625,
+        "layers": [
+          {
+            "layer": 0,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 1,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 2,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 3,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 4,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 5,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 6,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 7,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 8,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 9,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 10,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 11,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 12,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 13,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 14,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 15,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 16,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 17,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 18,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 19,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 20,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 21,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 22,
+            "cache_type": "RotatingKVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 180224,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          },
+          {
+            "layer": 23,
+            "cache_type": "KVCache",
+            "offset": 88,
+            "size": 88,
+            "nbytes": 524288,
+            "state_shapes": [
+              [
+                1,
+                8,
+                88,
+                64
+              ],
+              [
+                1,
+                8,
+                88,
+                64
+              ]
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "official_mlx": {
+    "generated_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889,
+      1121,
+      516,
+      1254,
+      6462,
+      13,
+      51441,
+      39085,
+      566,
+      11,
+      8633,
+      484,
+      1920,
+      30285,
+      5143,
+      261,
+      2608,
+      11,
+      27666,
+      328,
+      1001,
+      29030,
+      33780,
+      290,
+      1273,
+      11,
+      860,
+      16107,
+      93258,
+      33495,
+      11686,
+      11,
+      5178,
+      13,
+      16835,
+      480,
+      4705,
+      13,
+      200007,
+      200006,
+      173781,
+      200005,
+      17196,
+      200008,
+      410,
+      170939,
+      1121,
+      516,
+      1254,
+      410,
+      382,
+      261,
+      28783,
+      889,
+      1374,
+      4322,
+      328
+    ],
+    "output_text": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-light communication, etc. Keep it simple.assistantfinal**Quantum entanglement** is a weird but real property of",
+    "ttft_s": 0.6610552920001282,
+    "elapsed_s": 2.630698291999579,
+    "generation_tps": 31.98549178709927,
+    "peak_memory_gb": 12.961348051205277,
+    "first_token_id": 200005,
+    "first_8_token_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889
+    ],
+    "first_64_token_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889,
+      1121,
+      516,
+      1254,
+      6462,
+      13,
+      51441,
+      39085,
+      566,
+      11,
+      8633,
+      484,
+      1920,
+      30285,
+      5143,
+      261,
+      2608,
+      11,
+      27666,
+      328,
+      1001,
+      29030,
+      33780,
+      290,
+      1273,
+      11,
+      860,
+      16107,
+      93258,
+      33495,
+      11686,
+      11,
+      5178,
+      13,
+      16835,
+      480,
+      4705,
+      13,
+      200007,
+      200006,
+      173781,
+      200005,
+      17196,
+      200008,
+      410,
+      170939,
+      1121,
+      516,
+      1254,
+      410,
+      382,
+      261,
+      28783,
+      889,
+      1374,
+      4322,
+      328
+    ],
+    "first_token_logprobs_top10": [
+      {
+        "rank": 1,
+        "token_id": 200005,
+        "logprob": 0.0
+      },
+      {
+        "rank": 2,
+        "token_id": 200003,
+        "logprob": -25.75
+      },
+      {
+        "rank": 3,
+        "token_id": 220,
+        "logprob": -26.5
+      },
+      {
+        "rank": 4,
+        "token_id": 200008,
+        "logprob": -27.75
+      },
+      {
+        "rank": 5,
+        "token_id": 2322,
+        "logprob": -29.25
+      },
+      {
+        "rank": 6,
+        "token_id": 12606,
+        "logprob": -29.25
+      },
+      {
+        "rank": 7,
+        "token_id": 350,
+        "logprob": -29.5
+      },
+      {
+        "rank": 8,
+        "token_id": 126952,
+        "logprob": -30.0
+      },
+      {
+        "rank": 9,
+        "token_id": 49159,
+        "logprob": -30.125
+      },
+      {
+        "rank": 10,
+        "token_id": 1127,
+        "logprob": -30.25
+      }
+    ]
+  },
+  "official_prefill_cache_debug": {
+    "prompt_tokens_processed": 88,
+    "cache": {
+      "total_layers": 24,
+      "total_nbytes": 8454144,
+      "total_gb": 0.00787353515625,
+      "layers": [
+        {
+          "layer": 0,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 1,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 2,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 3,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 4,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 5,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 6,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 7,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 8,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 9,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 10,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 11,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 12,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 13,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 14,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 15,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 16,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 17,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 18,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 19,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 20,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 21,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 22,
+          "cache_type": "RotatingKVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 180224,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        },
+        {
+          "layer": 23,
+          "cache_type": "KVCache",
+          "offset": 88,
+          "size": 88,
+          "nbytes": 524288,
+          "state_shapes": [
+            [
+              1,
+              8,
+              88,
+              64
+            ],
+            [
+              1,
+              8,
+              88,
+              64
+            ]
+          ]
+        }
+      ]
+    }
+  },
+  "legacy_full_prompt_prefill": {
+    "generated_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889,
+      1121,
+      516,
+      1254,
+      6462,
+      13,
+      51441,
+      39085,
+      566,
+      11,
+      8397,
+      12914,
+      13324,
+      13,
+      7649,
+      19695,
+      15652,
+      13,
+      132059,
+      484,
+      1121,
+      103612,
+      30285,
+      5143,
+      261,
+      6703,
+      2238,
+      484,
+      27666,
+      328,
+      1001,
+      29030,
+      33780,
+      290,
+      1273,
+      11,
+      23994,
+      328,
+      9324,
+      13,
+      7649,
+      4705,
+      6439,
+      13,
+      8820,
+      8633,
+      484,
+      4275,
+      625,
+      16107,
+      93258,
+      33495,
+      11686,
+      11,
+      889,
+      46307,
+      13
+    ],
+    "output_text": "analysisWe need to explain quantum entanglement simply. Provide analogies, avoid heavy math. Use everyday examples. Mention that entangled particles share a connection such that measurement of one instantly affects the other, regardless of distance. Use simple language. Also mention that it's not faster-than-light communication, but correlation.",
+    "ttft_s": 0.6588971670007595,
+    "elapsed_s": 3.1728905830004805,
+    "generation_tps": 25.0597315009066,
+    "first_token_id": 200005,
+    "first_8_token_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889
+    ],
+    "first_64_token_ids": [
+      200005,
+      35644,
+      200008,
+      2167,
+      1309,
+      316,
+      16644,
+      48889,
+      1121,
+      516,
+      1254,
+      6462,
+      13,
+      51441,
+      39085,
+      566,
+      11,
+      8397,
+      12914,
+      13324,
+      13,
+      7649,
+      19695,
+      15652,
+      13,
+      132059,
+      484,
+      1121,
+      103612,
+      30285,
+      5143,
+      261,
+      6703,
+      2238,
+      484,
+      27666,
+      328,
+      1001,
+      29030,
+      33780,
+      290,
+      1273,
+      11,
+      23994,
+      328,
+      9324,
+      13,
+      7649,
+      4705,
+      6439,
+      13,
+      8820,
+      8633,
+      484,
+      4275,
+      625,
+      16107,
+      93258,
+      33495,
+      11686,
+      11,
+      889,
+      46307,
+      13
+    ],
+    "first_token_logits_top10": [
+      {
+        "rank": 1,
+        "token_id": 200005,
+        "logit": 43.0
+      },
+      {
+        "rank": 2,
+        "token_id": 200003,
+        "logit": 16.75
+      },
+      {
+        "rank": 3,
+        "token_id": 220,
+        "logit": 16.0
+      },
+      {
+        "rank": 4,
+        "token_id": 200008,
+        "logit": 15.25
+      },
+      {
+        "rank": 5,
+        "token_id": 12606,
+        "logit": 14.75
+      },
+      {
+        "rank": 6,
+        "token_id": 350,
+        "logit": 13.625
+      },
+      {
+        "rank": 7,
+        "token_id": 49159,
+        "logit": 13.0625
+      },
+      {
+        "rank": 8,
+        "token_id": 35644,
+        "logit": 12.9375
+      },
+      {
+        "rank": 9,
+        "token_id": 286,
+        "logit": 12.5
+      },
+      {
+        "rank": 10,
+        "token_id": 1131,
+        "logit": 12.5
+      }
+    ],
+    "first_token_logprobs_top10": [
+      {
+        "rank": 1,
+        "token_id": 200005,
+        "logprob": 0.0
+      },
+      {
+        "rank": 2,
+        "token_id": 200003,
+        "logprob": -26.25
+      },
+      {
+        "rank": 3,
+        "token_id": 220,
+        "logprob": -27.0
+      },
+      {
+        "rank": 4,
+        "token_id": 200008,
+        "logprob": -27.75
+      },
+      {
+        "rank": 5,
+        "token_id": 12606,
+        "logprob": -28.25
+      },
+      {
+        "rank": 6,
+        "token_id": 350,
+        "logprob": -29.375
+      },
+      {
+        "rank": 7,
+        "token_id": 35644,
+        "logprob": -30.0
+      },
+      {
+        "rank": 8,
+        "token_id": 49159,
+        "logprob": -30.0
+      },
+      {
+        "rank": 9,
+        "token_id": 286,
+        "logprob": -30.5
+      },
+      {
+        "rank": 10,
+        "token_id": 1131,
+        "logprob": -30.5
+      }
+    ]
+  },
+  "equivalence": {
+    "prefix_match_tokens": 64,
+    "exact_match_rate": 1.0,
+    "first_divergence_position": null,
+    "passed": true,
+    "divergence_window": null
+  },
+  "legacy_vs_official": {
+    "prefix_match_tokens": 17,
+    "exact_match_rate": 0.265625,
+    "first_divergence_position": 17,
+    "passed": false,
+    "divergence_window": {
+      "start": 13,
+      "stop": 22,
+      "manual": [
+        51441,
+        39085,
+        566,
+        11,
+        8397,
+        12914,
+        13324,
+        13,
+        7649
+      ],
+      "official": [
+        51441,
+        39085,
+        566,
+        11,
+        8633,
+        484,
+        1920,
+        30285,
+        5143
+      ]
+    }
+  },
+  "root_cause": {
+    "bucket": "prefill mismatch",
+    "status": "fixed",
+    "summary": "The old manual baseline diverged because it prefills the entire prompt before sampling the first generated token. Official mlx_lm.generate_step() instead prefills prompt[:-1] and then runs a single-token forward pass on the last prompt token. That difference changes rotating sliding-window KV-cache update behavior and caused the divergence that began at token 17."
+  },
+  "official_path_audit": {
+    "sampler": "make_sampler(temp=0.0) -> argmax",
+    "logits_processors": "None",
+    "repetition_penalty": "None",
+    "presence_penalty": "None",
+    "frequency_penalty": "None",
+    "prompt_prefill_behavior": "prefill prompt[:-1], then step on prompt[-1:]",
+    "cache_update_order": "official path updates cache during multi-token prefill chunks, then performs the first decode step as a single-token cache update",
+    "eos_behavior": "generate_step itself does not stop on EOS; this debug harness stops both paths on the same EOS set for fair comparison"
+  }
+}

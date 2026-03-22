@@ -1,0 +1,1080 @@
+{
+  "model_id": "/Users/junson/Documents/GitHub/models/llama-3.1-8b-instruct-4bit",
+  "family": "llama",
+  "architecture": "dense",
+  "num_layers": 32,
+  "middle_layer": 16,
+  "final_layer": 31,
+  "resolution_entry_layer": 27,
+  "plateau_zone": [
+    12,
+    14
+  ],
+  "separation_ratio_middle_to_final": 0.3282,
+  "centroid_distance_middle_to_final": 17.3194,
+  "middle_sigma": 52.7667,
+  "final_sigma": 26.735,
+  "aggregated_per_layer": [
+    {
+      "layer_idx": 0,
+      "avg_kl": 11.135714,
+      "median_kl": 11.180699,
+      "delta_kl": 0.0,
+      "kl_reduction_pct": 0.0
+    },
+    {
+      "layer_idx": 1,
+      "avg_kl": 11.320204,
+      "median_kl": 11.632245,
+      "delta_kl": -0.18449,
+      "kl_reduction_pct": -1.66
+    },
+    {
+      "layer_idx": 2,
+      "avg_kl": 11.933915,
+      "median_kl": 12.006105,
+      "delta_kl": -0.613711,
+      "kl_reduction_pct": -7.17
+    },
+    {
+      "layer_idx": 3,
+      "avg_kl": 11.957669,
+      "median_kl": 12.278892,
+      "delta_kl": -0.023754,
+      "kl_reduction_pct": -7.38
+    },
+    {
+      "layer_idx": 4,
+      "avg_kl": 11.88259,
+      "median_kl": 11.977509,
+      "delta_kl": 0.075079,
+      "kl_reduction_pct": -6.71
+    },
+    {
+      "layer_idx": 5,
+      "avg_kl": 12.090463,
+      "median_kl": 12.513365,
+      "delta_kl": -0.207873,
+      "kl_reduction_pct": -8.57
+    },
+    {
+      "layer_idx": 6,
+      "avg_kl": 12.363632,
+      "median_kl": 12.448939,
+      "delta_kl": -0.273169,
+      "kl_reduction_pct": -11.03
+    },
+    {
+      "layer_idx": 7,
+      "avg_kl": 12.261267,
+      "median_kl": 12.459695,
+      "delta_kl": 0.102365,
+      "kl_reduction_pct": -10.11
+    },
+    {
+      "layer_idx": 8,
+      "avg_kl": 12.044788,
+      "median_kl": 11.85538,
+      "delta_kl": 0.216479,
+      "kl_reduction_pct": -8.16
+    },
+    {
+      "layer_idx": 9,
+      "avg_kl": 11.578909,
+      "median_kl": 11.781667,
+      "delta_kl": 0.465879,
+      "kl_reduction_pct": -3.98
+    },
+    {
+      "layer_idx": 10,
+      "avg_kl": 11.589034,
+      "median_kl": 11.847463,
+      "delta_kl": -0.010125,
+      "kl_reduction_pct": -4.07
+    },
+    {
+      "layer_idx": 11,
+      "avg_kl": 11.790427,
+      "median_kl": 11.914487,
+      "delta_kl": -0.201393,
+      "kl_reduction_pct": -5.88
+    },
+    {
+      "layer_idx": 12,
+      "avg_kl": 11.120549,
+      "median_kl": 11.585549,
+      "delta_kl": 0.669878,
+      "kl_reduction_pct": 0.14
+    },
+    {
+      "layer_idx": 13,
+      "avg_kl": 11.168266,
+      "median_kl": 11.161534,
+      "delta_kl": -0.047717,
+      "kl_reduction_pct": -0.29
+    },
+    {
+      "layer_idx": 14,
+      "avg_kl": 11.158278,
+      "median_kl": 11.241126,
+      "delta_kl": 0.009988,
+      "kl_reduction_pct": -0.2
+    },
+    {
+      "layer_idx": 15,
+      "avg_kl": 10.56791,
+      "median_kl": 10.512246,
+      "delta_kl": 0.590368,
+      "kl_reduction_pct": 5.1
+    },
+    {
+      "layer_idx": 16,
+      "avg_kl": 10.41417,
+      "median_kl": 10.638497,
+      "delta_kl": 0.15374,
+      "kl_reduction_pct": 6.48
+    },
+    {
+      "layer_idx": 17,
+      "avg_kl": 10.446479,
+      "median_kl": 10.984089,
+      "delta_kl": -0.032309,
+      "kl_reduction_pct": 6.19
+    },
+    {
+      "layer_idx": 18,
+      "avg_kl": 10.075272,
+      "median_kl": 10.302165,
+      "delta_kl": 0.371207,
+      "kl_reduction_pct": 9.52
+    },
+    {
+      "layer_idx": 19,
+      "avg_kl": 9.403025,
+      "median_kl": 9.353523,
+      "delta_kl": 0.672247,
+      "kl_reduction_pct": 15.56
+    },
+    {
+      "layer_idx": 20,
+      "avg_kl": 9.022377,
+      "median_kl": 8.647172,
+      "delta_kl": 0.380648,
+      "kl_reduction_pct": 18.98
+    },
+    {
+      "layer_idx": 21,
+      "avg_kl": 8.630499,
+      "median_kl": 8.161815,
+      "delta_kl": 0.391878,
+      "kl_reduction_pct": 22.5
+    },
+    {
+      "layer_idx": 22,
+      "avg_kl": 8.308866,
+      "median_kl": 7.892859,
+      "delta_kl": 0.321633,
+      "kl_reduction_pct": 25.39
+    },
+    {
+      "layer_idx": 23,
+      "avg_kl": 8.086326,
+      "median_kl": 7.694415,
+      "delta_kl": 0.22254,
+      "kl_reduction_pct": 27.38
+    },
+    {
+      "layer_idx": 24,
+      "avg_kl": 7.736318,
+      "median_kl": 6.924241,
+      "delta_kl": 0.350008,
+      "kl_reduction_pct": 30.53
+    },
+    {
+      "layer_idx": 25,
+      "avg_kl": 7.235228,
+      "median_kl": 6.744682,
+      "delta_kl": 0.50109,
+      "kl_reduction_pct": 35.03
+    },
+    {
+      "layer_idx": 26,
+      "avg_kl": 6.642185,
+      "median_kl": 5.77527,
+      "delta_kl": 0.593043,
+      "kl_reduction_pct": 40.35
+    },
+    {
+      "layer_idx": 27,
+      "avg_kl": 5.982866,
+      "median_kl": 5.297458,
+      "delta_kl": 0.659319,
+      "kl_reduction_pct": 46.27
+    },
+    {
+      "layer_idx": 28,
+      "avg_kl": 5.522498,
+      "median_kl": 4.678231,
+      "delta_kl": 0.460368,
+      "kl_reduction_pct": 50.41
+    },
+    {
+      "layer_idx": 29,
+      "avg_kl": 4.423781,
+      "median_kl": 3.699153,
+      "delta_kl": 1.098717,
+      "kl_reduction_pct": 60.27
+    },
+    {
+      "layer_idx": 30,
+      "avg_kl": 2.221078,
+      "median_kl": 1.851715,
+      "delta_kl": 2.202703,
+      "kl_reduction_pct": 80.05
+    },
+    {
+      "layer_idx": 31,
+      "avg_kl": 0.0,
+      "median_kl": 0.0,
+      "delta_kl": 2.221078,
+      "kl_reduction_pct": 100.0
+    }
+  ],
+  "per_prompt_profiles": [
+    {
+      "prompt_id": "P1",
+      "user_prompt": "Explain quantum entanglement in simple terms.",
+      "num_tokens_profiled": 52,
+      "per_layer": [
+        {
+          "layer_idx": 0,
+          "avg_kl": 11.260431289672852,
+          "median_kl": 11.112506866455078
+        },
+        {
+          "layer_idx": 1,
+          "avg_kl": 11.456562042236328,
+          "median_kl": 11.791961669921875
+        },
+        {
+          "layer_idx": 2,
+          "avg_kl": 12.073202133178711,
+          "median_kl": 12.06277847290039
+        },
+        {
+          "layer_idx": 3,
+          "avg_kl": 12.058452606201172,
+          "median_kl": 12.36257553100586
+        },
+        {
+          "layer_idx": 4,
+          "avg_kl": 12.086137771606445,
+          "median_kl": 12.396109580993652
+        },
+        {
+          "layer_idx": 5,
+          "avg_kl": 12.273771286010742,
+          "median_kl": 12.887151718139648
+        },
+        {
+          "layer_idx": 6,
+          "avg_kl": 12.43479061126709,
+          "median_kl": 12.535351753234863
+        },
+        {
+          "layer_idx": 7,
+          "avg_kl": 12.333602905273438,
+          "median_kl": 12.790363311767578
+        },
+        {
+          "layer_idx": 8,
+          "avg_kl": 12.208853721618652,
+          "median_kl": 12.049747467041016
+        },
+        {
+          "layer_idx": 9,
+          "avg_kl": 11.751043319702148,
+          "median_kl": 11.941530227661133
+        },
+        {
+          "layer_idx": 10,
+          "avg_kl": 11.73446273803711,
+          "median_kl": 12.027063369750977
+        },
+        {
+          "layer_idx": 11,
+          "avg_kl": 11.892961502075195,
+          "median_kl": 12.064826011657715
+        },
+        {
+          "layer_idx": 12,
+          "avg_kl": 11.29478645324707,
+          "median_kl": 11.715775489807129
+        },
+        {
+          "layer_idx": 13,
+          "avg_kl": 11.294829368591309,
+          "median_kl": 11.368243217468262
+        },
+        {
+          "layer_idx": 14,
+          "avg_kl": 11.251320838928223,
+          "median_kl": 11.122880935668945
+        },
+        {
+          "layer_idx": 15,
+          "avg_kl": 10.69484806060791,
+          "median_kl": 10.583595275878906
+        },
+        {
+          "layer_idx": 16,
+          "avg_kl": 10.506321907043457,
+          "median_kl": 10.620763778686523
+        },
+        {
+          "layer_idx": 17,
+          "avg_kl": 10.475701332092285,
+          "median_kl": 10.950263977050781
+        },
+        {
+          "layer_idx": 18,
+          "avg_kl": 10.052510261535645,
+          "median_kl": 10.261432647705078
+        },
+        {
+          "layer_idx": 19,
+          "avg_kl": 9.40391731262207,
+          "median_kl": 9.213998794555664
+        },
+        {
+          "layer_idx": 20,
+          "avg_kl": 8.952178001403809,
+          "median_kl": 8.650318145751953
+        },
+        {
+          "layer_idx": 21,
+          "avg_kl": 8.587711334228516,
+          "median_kl": 8.316932678222656
+        },
+        {
+          "layer_idx": 22,
+          "avg_kl": 8.38811206817627,
+          "median_kl": 8.119405746459961
+        },
+        {
+          "layer_idx": 23,
+          "avg_kl": 8.142942428588867,
+          "median_kl": 7.838309288024902
+        },
+        {
+          "layer_idx": 24,
+          "avg_kl": 7.863319396972656,
+          "median_kl": 7.087328910827637
+        },
+        {
+          "layer_idx": 25,
+          "avg_kl": 7.3980302810668945,
+          "median_kl": 6.788537979125977
+        },
+        {
+          "layer_idx": 26,
+          "avg_kl": 6.876787185668945,
+          "median_kl": 5.944990158081055
+        },
+        {
+          "layer_idx": 27,
+          "avg_kl": 5.997570991516113,
+          "median_kl": 5.063449859619141
+        },
+        {
+          "layer_idx": 28,
+          "avg_kl": 5.4817423820495605,
+          "median_kl": 4.582319259643555
+        },
+        {
+          "layer_idx": 29,
+          "avg_kl": 4.347043514251709,
+          "median_kl": 3.5041351318359375
+        },
+        {
+          "layer_idx": 30,
+          "avg_kl": 2.106468439102173,
+          "median_kl": 1.6488990783691406
+        },
+        {
+          "layer_idx": 31,
+          "avg_kl": 0.0,
+          "median_kl": 0.0
+        }
+      ]
+    },
+    {
+      "prompt_id": "P2",
+      "user_prompt": "Summarize why the French Revolution was historically important.",
+      "num_tokens_profiled": 53,
+      "per_layer": [
+        {
+          "layer_idx": 0,
+          "avg_kl": 11.002920150756836,
+          "median_kl": 10.756402969360352
+        },
+        {
+          "layer_idx": 1,
+          "avg_kl": 11.271263122558594,
+          "median_kl": 11.561626434326172
+        },
+        {
+          "layer_idx": 2,
+          "avg_kl": 11.83126449584961,
+          "median_kl": 12.105463027954102
+        },
+        {
+          "layer_idx": 3,
+          "avg_kl": 11.80853271484375,
+          "median_kl": 12.038704872131348
+        },
+        {
+          "layer_idx": 4,
+          "avg_kl": 11.746366500854492,
+          "median_kl": 11.274904251098633
+        },
+        {
+          "layer_idx": 5,
+          "avg_kl": 12.039118766784668,
+          "median_kl": 12.37866497039795
+        },
+        {
+          "layer_idx": 6,
+          "avg_kl": 12.260347366333008,
+          "median_kl": 12.398390769958496
+        },
+        {
+          "layer_idx": 7,
+          "avg_kl": 12.201539039611816,
+          "median_kl": 12.376220703125
+        },
+        {
+          "layer_idx": 8,
+          "avg_kl": 11.914977073669434,
+          "median_kl": 11.770310401916504
+        },
+        {
+          "layer_idx": 9,
+          "avg_kl": 11.482250213623047,
+          "median_kl": 11.785075187683105
+        },
+        {
+          "layer_idx": 10,
+          "avg_kl": 11.471352577209473,
+          "median_kl": 11.766014099121094
+        },
+        {
+          "layer_idx": 11,
+          "avg_kl": 11.74863052368164,
+          "median_kl": 11.876039505004883
+        },
+        {
+          "layer_idx": 12,
+          "avg_kl": 11.074136734008789,
+          "median_kl": 11.606053352355957
+        },
+        {
+          "layer_idx": 13,
+          "avg_kl": 11.103282928466797,
+          "median_kl": 11.027559280395508
+        },
+        {
+          "layer_idx": 14,
+          "avg_kl": 11.058018684387207,
+          "median_kl": 11.117698669433594
+        },
+        {
+          "layer_idx": 15,
+          "avg_kl": 10.416216850280762,
+          "median_kl": 10.384554862976074
+        },
+        {
+          "layer_idx": 16,
+          "avg_kl": 10.249544143676758,
+          "median_kl": 10.274272918701172
+        },
+        {
+          "layer_idx": 17,
+          "avg_kl": 10.284492492675781,
+          "median_kl": 10.946455001831055
+        },
+        {
+          "layer_idx": 18,
+          "avg_kl": 9.892195701599121,
+          "median_kl": 9.985849380493164
+        },
+        {
+          "layer_idx": 19,
+          "avg_kl": 9.192169189453125,
+          "median_kl": 8.772398948669434
+        },
+        {
+          "layer_idx": 20,
+          "avg_kl": 8.80663013458252,
+          "median_kl": 8.043068885803223
+        },
+        {
+          "layer_idx": 21,
+          "avg_kl": 8.287068367004395,
+          "median_kl": 7.4262776374816895
+        },
+        {
+          "layer_idx": 22,
+          "avg_kl": 8.024149894714355,
+          "median_kl": 7.249605178833008
+        },
+        {
+          "layer_idx": 23,
+          "avg_kl": 7.765316963195801,
+          "median_kl": 7.199004650115967
+        },
+        {
+          "layer_idx": 24,
+          "avg_kl": 7.55149507522583,
+          "median_kl": 6.652426719665527
+        },
+        {
+          "layer_idx": 25,
+          "avg_kl": 6.98610782623291,
+          "median_kl": 6.645573616027832
+        },
+        {
+          "layer_idx": 26,
+          "avg_kl": 6.404634475708008,
+          "median_kl": 5.413405418395996
+        },
+        {
+          "layer_idx": 27,
+          "avg_kl": 5.779268741607666,
+          "median_kl": 5.173928737640381
+        },
+        {
+          "layer_idx": 28,
+          "avg_kl": 5.334125995635986,
+          "median_kl": 4.664542198181152
+        },
+        {
+          "layer_idx": 29,
+          "avg_kl": 4.342284679412842,
+          "median_kl": 3.6443004608154297
+        },
+        {
+          "layer_idx": 30,
+          "avg_kl": 2.306971788406372,
+          "median_kl": 1.680369257926941
+        },
+        {
+          "layer_idx": 31,
+          "avg_kl": 0.0,
+          "median_kl": 0.0
+        }
+      ]
+    },
+    {
+      "prompt_id": "P3",
+      "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+      "num_tokens_profiled": 53,
+      "per_layer": [
+        {
+          "layer_idx": 0,
+          "avg_kl": 11.216864585876465,
+          "median_kl": 11.345553398132324
+        },
+        {
+          "layer_idx": 1,
+          "avg_kl": 11.323014259338379,
+          "median_kl": 11.55833625793457
+        },
+        {
+          "layer_idx": 2,
+          "avg_kl": 11.987123489379883,
+          "median_kl": 11.917720794677734
+        },
+        {
+          "layer_idx": 3,
+          "avg_kl": 12.041021347045898,
+          "median_kl": 12.776493072509766
+        },
+        {
+          "layer_idx": 4,
+          "avg_kl": 11.918331146240234,
+          "median_kl": 12.179646492004395
+        },
+        {
+          "layer_idx": 5,
+          "avg_kl": 12.088272094726562,
+          "median_kl": 12.439269065856934
+        },
+        {
+          "layer_idx": 6,
+          "avg_kl": 12.581485748291016,
+          "median_kl": 12.641239166259766
+        },
+        {
+          "layer_idx": 7,
+          "avg_kl": 12.469677925109863,
+          "median_kl": 12.801542282104492
+        },
+        {
+          "layer_idx": 8,
+          "avg_kl": 12.263762474060059,
+          "median_kl": 11.905077934265137
+        },
+        {
+          "layer_idx": 9,
+          "avg_kl": 11.828773498535156,
+          "median_kl": 11.93096923828125
+        },
+        {
+          "layer_idx": 10,
+          "avg_kl": 11.831888198852539,
+          "median_kl": 12.07147216796875
+        },
+        {
+          "layer_idx": 11,
+          "avg_kl": 11.993124008178711,
+          "median_kl": 12.036886215209961
+        },
+        {
+          "layer_idx": 12,
+          "avg_kl": 11.277608871459961,
+          "median_kl": 11.606053352355957
+        },
+        {
+          "layer_idx": 13,
+          "avg_kl": 11.367475509643555,
+          "median_kl": 11.357681274414062
+        },
+        {
+          "layer_idx": 14,
+          "avg_kl": 11.393728256225586,
+          "median_kl": 11.867138862609863
+        },
+        {
+          "layer_idx": 15,
+          "avg_kl": 10.788825035095215,
+          "median_kl": 10.692026138305664
+        },
+        {
+          "layer_idx": 16,
+          "avg_kl": 10.690275192260742,
+          "median_kl": 10.861469268798828
+        },
+        {
+          "layer_idx": 17,
+          "avg_kl": 10.646484375,
+          "median_kl": 11.038131713867188
+        },
+        {
+          "layer_idx": 18,
+          "avg_kl": 10.346424102783203,
+          "median_kl": 10.852471351623535
+        },
+        {
+          "layer_idx": 19,
+          "avg_kl": 9.650779724121094,
+          "median_kl": 9.828750610351562
+        },
+        {
+          "layer_idx": 20,
+          "avg_kl": 9.331855773925781,
+          "median_kl": 9.022507667541504
+        },
+        {
+          "layer_idx": 21,
+          "avg_kl": 8.8936767578125,
+          "median_kl": 8.430598258972168
+        },
+        {
+          "layer_idx": 22,
+          "avg_kl": 8.46735668182373,
+          "median_kl": 8.089974403381348
+        },
+        {
+          "layer_idx": 23,
+          "avg_kl": 8.211456298828125,
+          "median_kl": 7.83961296081543
+        },
+        {
+          "layer_idx": 24,
+          "avg_kl": 7.787466526031494,
+          "median_kl": 7.149864673614502
+        },
+        {
+          "layer_idx": 25,
+          "avg_kl": 7.189414024353027,
+          "median_kl": 6.738214492797852
+        },
+        {
+          "layer_idx": 26,
+          "avg_kl": 6.561312675476074,
+          "median_kl": 5.9328389167785645
+        },
+        {
+          "layer_idx": 27,
+          "avg_kl": 5.955683708190918,
+          "median_kl": 5.555266857147217
+        },
+        {
+          "layer_idx": 28,
+          "avg_kl": 5.493537902832031,
+          "median_kl": 4.752450942993164
+        },
+        {
+          "layer_idx": 29,
+          "avg_kl": 4.396475791931152,
+          "median_kl": 3.8491506576538086
+        },
+        {
+          "layer_idx": 30,
+          "avg_kl": 2.17832088470459,
+          "median_kl": 2.0776357650756836
+        },
+        {
+          "layer_idx": 31,
+          "avg_kl": 0.0,
+          "median_kl": 0.0
+        }
+      ]
+    },
+    {
+      "prompt_id": "P4",
+      "user_prompt": "Explain the difference between TCP and UDP in plain English.",
+      "num_tokens_profiled": 54,
+      "per_layer": [
+        {
+          "layer_idx": 0,
+          "avg_kl": 11.163195610046387,
+          "median_kl": 11.345231056213379
+        },
+        {
+          "layer_idx": 1,
+          "avg_kl": 11.269128799438477,
+          "median_kl": 11.60395622253418
+        },
+        {
+          "layer_idx": 2,
+          "avg_kl": 11.83116626739502,
+          "median_kl": 11.881784439086914
+        },
+        {
+          "layer_idx": 3,
+          "avg_kl": 11.841879844665527,
+          "median_kl": 12.02242660522461
+        },
+        {
+          "layer_idx": 4,
+          "avg_kl": 11.7294921875,
+          "median_kl": 12.071088790893555
+        },
+        {
+          "layer_idx": 5,
+          "avg_kl": 11.996635437011719,
+          "median_kl": 12.461018562316895
+        },
+        {
+          "layer_idx": 6,
+          "avg_kl": 12.24495792388916,
+          "median_kl": 12.339271545410156
+        },
+        {
+          "layer_idx": 7,
+          "avg_kl": 12.164278030395508,
+          "median_kl": 12.474861145019531
+        },
+        {
+          "layer_idx": 8,
+          "avg_kl": 11.917803764343262,
+          "median_kl": 11.80463981628418
+        },
+        {
+          "layer_idx": 9,
+          "avg_kl": 11.440255165100098,
+          "median_kl": 11.743524551391602
+        },
+        {
+          "layer_idx": 10,
+          "avg_kl": 11.45013427734375,
+          "median_kl": 11.903963088989258
+        },
+        {
+          "layer_idx": 11,
+          "avg_kl": 11.652037620544434,
+          "median_kl": 11.909427642822266
+        },
+        {
+          "layer_idx": 12,
+          "avg_kl": 10.99618148803711,
+          "median_kl": 11.581037521362305
+        },
+        {
+          "layer_idx": 13,
+          "avg_kl": 11.009588241577148,
+          "median_kl": 11.057635307312012
+        },
+        {
+          "layer_idx": 14,
+          "avg_kl": 10.98829174041748,
+          "median_kl": 11.077071189880371
+        },
+        {
+          "layer_idx": 15,
+          "avg_kl": 10.401288986206055,
+          "median_kl": 10.42986011505127
+        },
+        {
+          "layer_idx": 16,
+          "avg_kl": 10.266534805297852,
+          "median_kl": 10.864357948303223
+        },
+        {
+          "layer_idx": 17,
+          "avg_kl": 10.337746620178223,
+          "median_kl": 10.9927978515625
+        },
+        {
+          "layer_idx": 18,
+          "avg_kl": 9.913213729858398,
+          "median_kl": 10.123126983642578
+        },
+        {
+          "layer_idx": 19,
+          "avg_kl": 9.214888572692871,
+          "median_kl": 9.33233642578125
+        },
+        {
+          "layer_idx": 20,
+          "avg_kl": 8.821877479553223,
+          "median_kl": 8.650318145751953
+        },
+        {
+          "layer_idx": 21,
+          "avg_kl": 8.515774726867676,
+          "median_kl": 8.213809967041016
+        },
+        {
+          "layer_idx": 22,
+          "avg_kl": 8.229329109191895,
+          "median_kl": 7.984013557434082
+        },
+        {
+          "layer_idx": 23,
+          "avg_kl": 8.016908645629883,
+          "median_kl": 7.75684118270874
+        },
+        {
+          "layer_idx": 24,
+          "avg_kl": 7.586630821228027,
+          "median_kl": 6.830438613891602
+        },
+        {
+          "layer_idx": 25,
+          "avg_kl": 7.067291736602783,
+          "median_kl": 6.762547969818115
+        },
+        {
+          "layer_idx": 26,
+          "avg_kl": 6.488959312438965,
+          "median_kl": 5.8515944480896
+        },
+        {
+          "layer_idx": 27,
+          "avg_kl": 5.93904972076416,
+          "median_kl": 5.347321510314941
+        },
+        {
+          "layer_idx": 28,
+          "avg_kl": 5.540145397186279,
+          "median_kl": 4.683346748352051
+        },
+        {
+          "layer_idx": 29,
+          "avg_kl": 4.4120073318481445,
+          "median_kl": 3.7490882873535156
+        },
+        {
+          "layer_idx": 30,
+          "avg_kl": 2.161633014678955,
+          "median_kl": 1.6704051494598389
+        },
+        {
+          "layer_idx": 31,
+          "avg_kl": 0.0,
+          "median_kl": 0.0
+        }
+      ]
+    },
+    {
+      "prompt_id": "P5",
+      "user_prompt": "Describe what photosynthesis does.",
+      "num_tokens_profiled": 48,
+      "per_layer": [
+        {
+          "layer_idx": 0,
+          "avg_kl": 11.035160064697266,
+          "median_kl": 11.343799591064453
+        },
+        {
+          "layer_idx": 1,
+          "avg_kl": 11.281050682067871,
+          "median_kl": 11.645345687866211
+        },
+        {
+          "layer_idx": 2,
+          "avg_kl": 11.946820259094238,
+          "median_kl": 12.06277847290039
+        },
+        {
+          "layer_idx": 3,
+          "avg_kl": 12.038458824157715,
+          "median_kl": 12.194259643554688
+        },
+        {
+          "layer_idx": 4,
+          "avg_kl": 11.932624816894531,
+          "median_kl": 11.965797424316406
+        },
+        {
+          "layer_idx": 5,
+          "avg_kl": 12.054516792297363,
+          "median_kl": 12.400720596313477
+        },
+        {
+          "layer_idx": 6,
+          "avg_kl": 12.29658031463623,
+          "median_kl": 12.330440521240234
+        },
+        {
+          "layer_idx": 7,
+          "avg_kl": 12.137234687805176,
+          "median_kl": 11.855489730834961
+        },
+        {
+          "layer_idx": 8,
+          "avg_kl": 11.918543815612793,
+          "median_kl": 11.747125625610352
+        },
+        {
+          "layer_idx": 9,
+          "avg_kl": 11.39222240447998,
+          "median_kl": 11.507233619689941
+        },
+        {
+          "layer_idx": 10,
+          "avg_kl": 11.4573335647583,
+          "median_kl": 11.468803405761719
+        },
+        {
+          "layer_idx": 11,
+          "avg_kl": 11.665383338928223,
+          "median_kl": 11.685256958007812
+        },
+        {
+          "layer_idx": 12,
+          "avg_kl": 10.96003246307373,
+          "median_kl": 11.4188232421875
+        },
+        {
+          "layer_idx": 13,
+          "avg_kl": 11.066154479980469,
+          "median_kl": 10.996549606323242
+        },
+        {
+          "layer_idx": 14,
+          "avg_kl": 11.100028991699219,
+          "median_kl": 11.02083969116211
+        },
+        {
+          "layer_idx": 15,
+          "avg_kl": 10.538369178771973,
+          "median_kl": 10.471195220947266
+        },
+        {
+          "layer_idx": 16,
+          "avg_kl": 10.358173370361328,
+          "median_kl": 10.571619033813477
+        },
+        {
+          "layer_idx": 17,
+          "avg_kl": 10.487969398498535,
+          "median_kl": 10.9927978515625
+        },
+        {
+          "layer_idx": 18,
+          "avg_kl": 10.172017097473145,
+          "median_kl": 10.287946701049805
+        },
+        {
+          "layer_idx": 19,
+          "avg_kl": 9.55336856842041,
+          "median_kl": 9.620128631591797
+        },
+        {
+          "layer_idx": 20,
+          "avg_kl": 9.19934368133545,
+          "median_kl": 8.869647979736328
+        },
+        {
+          "layer_idx": 21,
+          "avg_kl": 8.868263244628906,
+          "median_kl": 8.421457290649414
+        },
+        {
+          "layer_idx": 22,
+          "avg_kl": 8.435381889343262,
+          "median_kl": 8.0212984085083
+        },
+        {
+          "layer_idx": 23,
+          "avg_kl": 8.29500675201416,
+          "median_kl": 7.838309288024902
+        },
+        {
+          "layer_idx": 24,
+          "avg_kl": 7.892679691314697,
+          "median_kl": 6.901145935058594
+        },
+        {
+          "layer_idx": 25,
+          "avg_kl": 7.535297393798828,
+          "median_kl": 6.788537979125977
+        },
+        {
+          "layer_idx": 26,
+          "avg_kl": 6.8792338371276855,
+          "median_kl": 5.733523368835449
+        },
+        {
+          "layer_idx": 27,
+          "avg_kl": 6.2427544593811035,
+          "median_kl": 5.347321510314941
+        },
+        {
+          "layer_idx": 28,
+          "avg_kl": 5.762937068939209,
+          "median_kl": 4.708496570587158
+        },
+        {
+          "layer_idx": 29,
+          "avg_kl": 4.621096134185791,
+          "median_kl": 3.7490882873535156
+        },
+        {
+          "layer_idx": 30,
+          "avg_kl": 2.351996421813965,
+          "median_kl": 2.1812667846679688
+        },
+        {
+          "layer_idx": 31,
+          "avg_kl": 0.0,
+          "median_kl": 0.0
+        }
+      ]
+    }
+  ]
+}

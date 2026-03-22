@@ -1,0 +1,1611 @@
+{
+  "experiment": "transcender_postfix_dynamic_benchmark",
+  "resolved_model_path": "/Users/junson/.cache/huggingface/hub/models--openai--gpt-oss-20b/snapshots/6cee5e81ee83917806bbde320786a8fb61efebee",
+  "prompts": [
+    {
+      "prompt_id": "P1",
+      "system": "You are a helpful assistant.",
+      "user": "Explain quantum entanglement in simple terms.",
+      "reasoning_effort": "medium"
+    },
+    {
+      "prompt_id": "P2",
+      "system": "You are a helpful assistant.",
+      "user": "Summarize why the French Revolution was historically important.",
+      "reasoning_effort": "medium"
+    },
+    {
+      "prompt_id": "P3",
+      "system": "You are a helpful assistant.",
+      "user": "Write a short explanation of recursion for a beginner programmer.",
+      "reasoning_effort": "medium"
+    },
+    {
+      "prompt_id": "P4",
+      "system": "You are a helpful assistant.",
+      "user": "Explain the difference between TCP and UDP in plain English.",
+      "reasoning_effort": "medium"
+    },
+    {
+      "prompt_id": "P5",
+      "system": "You are a helpful assistant.",
+      "user": "Describe what photosynthesis does.",
+      "reasoning_effort": "medium"
+    }
+  ],
+  "settings": {
+    "max_new_tokens": 48,
+    "consistency_tokens": 16,
+    "consistency_prompts": 3,
+    "reasoning_effort": "medium",
+    "baseline_source_of_truth": "corrected_manual_full_depth_dynamic_false",
+    "deterministic_decoding": true,
+    "policy_sweep": [
+      {
+        "key": "A_h23_no_skip",
+        "label": "A",
+        "description": "hard_exit=23, soft skip off. Control path: entropy_threshold=-1.0 guarantees the gate never opens.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 23,
+        "entropy_threshold": -1.0,
+        "min_entropy_streak": 2
+      },
+      {
+        "key": "B_h22_no_skip",
+        "label": "B",
+        "description": "hard_exit=22, soft skip off. Isolates hard exit at layer 22 only.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 22,
+        "entropy_threshold": -1.0,
+        "min_entropy_streak": 2
+      },
+      {
+        "key": "C_h22_default_gate",
+        "label": "C",
+        "description": "hard_exit=22, current default streak-2 gate on: soft_skip_start=19, entropy_threshold=0.20, min_entropy_streak=2.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 22,
+        "entropy_threshold": 0.2,
+        "min_entropy_streak": 2
+      },
+      {
+        "key": "D_h22_strict_gate",
+        "label": "D",
+        "description": "hard_exit=22, stricter gate: same layer schedule as default but requires lower entropy (threshold=0.15).",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 22,
+        "entropy_threshold": 0.15,
+        "min_entropy_streak": 2
+      },
+      {
+        "key": "E_h22_very_conservative_gate",
+        "label": "E",
+        "description": "hard_exit=22, very conservative gate: starts at layer 20, threshold=0.10, streak=2. If it opens at all, it can only skip layer 22.",
+        "soft_skip_start_layer": 20,
+        "hard_exit_layer": 22,
+        "entropy_threshold": 0.1,
+        "min_entropy_streak": 2
+      },
+      {
+        "key": "F_h21_no_skip",
+        "label": "F",
+        "description": "hard_exit=21, soft skip off. Reference only for the more aggressive hard-exit depth.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 21,
+        "entropy_threshold": -1.0,
+        "min_entropy_streak": 2
+      }
+    ],
+    "kl_spike_threshold": 0.8404886260441344
+  },
+  "current_default_policy": "C_h22_default_gate",
+  "config_results": [
+    {
+      "policy": {
+        "key": "A_h23_no_skip",
+        "label": "A",
+        "description": "hard_exit=23, soft skip off. Control path: entropy_threshold=-1.0 guarantees the gate never opens.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 23,
+        "entropy_threshold": -1.0,
+        "min_entropy_streak": 2,
+        "is_current_default": false
+      },
+      "prompt_results": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "baseline": {
+            "ttft_s": 0.681305500000235,
+            "generation_tps": 25.75375509585071,
+            "peak_memory_gb": 12.849686577916145,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7239497499995196,
+            "generation_tps": 18.774312047539325,
+            "peak_memory_gb": 12.850068055093288,
+            "avg_layers": 24.0,
+            "avg_layers_saved": 0.0,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -6.25919649837992,
+          "generation_tps_delta_pct": -27.100681133043274,
+          "memory_delta_gb": 0.0003814771771430969,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 48,
+          "exact_match_rate": 1.0,
+          "first_divergence_position": null
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "baseline": {
+            "ttft_s": 0.6812188750000132,
+            "generation_tps": 25.329754438069664,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Probably mention political, social, ideological impacts: overthrow o",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7225042910004049,
+            "generation_tps": 18.474226712838327,
+            "peak_memory_gb": 12.850648500025272,
+            "avg_layers": 24.0,
+            "avg_layers_saved": 0.0,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Probably mention political, social, ideological impacts: overthrow o",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -6.0605214440646415,
+          "generation_tps_delta_pct": -27.065117200377347,
+          "memory_delta_gb": 0.0003814697265625,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 48,
+          "exact_match_rate": 1.0,
+          "first_divergence_position": null
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "baseline": {
+            "ttft_s": 0.7188437919994612,
+            "generation_tps": 25.19956693826095,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner programmer. Should be simple, clear, maybe with example. Let's produce a concise explanation.assistantfinal",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis",
+                "assistantfinal"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.731720167000276,
+            "generation_tps": 18.151138257240323,
+            "peak_memory_gb": 12.850648500025272,
+            "avg_layers": 24.0,
+            "avg_layers_saved": 0.0,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner programmer. Should be simple, clear, maybe with example. Let's produce a concise explanation.assistantfinal",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis",
+                "assistantfinal"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -1.7912619047594673,
+          "generation_tps_delta_pct": -27.970435755064,
+          "memory_delta_gb": 0.0003814697265625,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 48,
+          "exact_match_rate": 1.0,
+          "first_divergence_position": null
+        },
+        {
+          "prompt_id": "P4",
+          "user_prompt": "Explain the difference between TCP and UDP in plain English.",
+          "baseline": {
+            "ttft_s": 0.747193832999983,
+            "generation_tps": 25.251815781239515,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple. Probably mention that TCP is reliable, connection-oriented, ensures order, erro",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.8241014589993938,
+            "generation_tps": 17.445310575243777,
+            "peak_memory_gb": 12.850648500025272,
+            "avg_layers": 24.0,
+            "avg_layers_saved": 0.0,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple. Probably mention that TCP is reliable, connection-oriented, ensures order, erro",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -10.292861450773318,
+          "generation_tps_delta_pct": -30.91462916419449,
+          "memory_delta_gb": 0.0003814697265625,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 48,
+          "exact_match_rate": 1.0,
+          "first_divergence_position": null
+        },
+        {
+          "prompt_id": "P5",
+          "user_prompt": "Describe what photosynthesis does.",
+          "baseline": {
+            "ttft_s": 0.6999460830002135,
+            "generation_tps": 25.950410182931986,
+            "peak_memory_gb": 12.848983764648438,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what photosynthesis does. Likely a concise explanation: process by which plants convert light",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.8127510829999665,
+            "generation_tps": 17.98966111209864,
+            "peak_memory_gb": 12.849365234375,
+            "avg_layers": 24.0,
+            "avg_layers_saved": 0.0,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what photosynthesis does. Likely a concise explanation: process by which plants convert light",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -16.116241341937545,
+          "generation_tps_delta_pct": -30.676775491083607,
+          "memory_delta_gb": 0.0003814697265625,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 48,
+          "exact_match_rate": 1.0,
+          "first_divergence_position": null
+        }
+      ],
+      "consistency_checks": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "tokens_compared": 16,
+          "top1_agreement": 1.0,
+          "avg_kl_divergence": 0.0
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "tokens_compared": 16,
+          "top1_agreement": 1.0,
+          "avg_kl_divergence": 0.0
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "tokens_compared": 16,
+          "top1_agreement": 1.0,
+          "avg_kl_divergence": 0.0
+        }
+      ],
+      "aggregate": {
+        "avg_exact_match_rate": 1.0,
+        "avg_prefix_match_tokens": 48.0,
+        "avg_ttft_improvement_pct": -8.104016527982978,
+        "avg_generation_tps_delta_pct": -28.745527748752544,
+        "avg_memory_delta_gb": 0.00038147121667861936,
+        "avg_layers_saved": 0.0,
+        "avg_dynamic_layers": 24.0,
+        "avg_baseline_ttft_s": 0.7057016165999812,
+        "avg_dynamic_ttft_s": 0.7630053499999121,
+        "avg_baseline_generation_tps": 25.497060487270566,
+        "avg_dynamic_generation_tps": 18.166929740992078,
+        "dynamic_analysis_trace_rate": 1.0,
+        "baseline_analysis_trace_rate": 1.0,
+        "analysis_style_shift_rate": 0.0,
+        "avg_top1_agreement": 1.0,
+        "avg_kl_divergence": 0.0,
+        "consistency_prompts_evaluated": 3
+      },
+      "flags": {
+        "exact_match_collapse": false,
+        "kl_spike": false,
+        "style_degradation": false,
+        "commercially_meaningful": false
+      }
+    },
+    {
+      "policy": {
+        "key": "B_h22_no_skip",
+        "label": "B",
+        "description": "hard_exit=22, soft skip off. Isolates hard exit at layer 22 only.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 22,
+        "entropy_threshold": -1.0,
+        "min_entropy_streak": 2,
+        "is_current_default": false
+      },
+      "prompt_results": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "baseline": {
+            "ttft_s": 0.681305500000235,
+            "generation_tps": 25.75375509585071,
+            "peak_memory_gb": 12.849686577916145,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.6698315419998835,
+            "generation_tps": 19.389298963390882,
+            "peak_memory_gb": 12.849396668374538,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles can be linked such that measurement of one instantly affects the other, regard",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": 1.6841135144729642,
+          "generation_tps_delta_pct": -24.712730663052827,
+          "memory_delta_gb": -0.0002899095416069031,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 21,
+          "exact_match_rate": 0.4375,
+          "first_divergence_position": 21
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "baseline": {
+            "ttft_s": 0.6812188750000132,
+            "generation_tps": 25.329754438069664,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Probably mention political, social, ideological impacts: overthrow o",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.6853336670001227,
+            "generation_tps": 18.337887673244325,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to produce a concise summary of why the French Revolution was historically important. Should mention key aspects: overthrow of monarchy, rise of republicanism, spre",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -0.6040337622925328,
+          "generation_tps_delta_pct": -27.60337366049166,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 6,
+          "exact_match_rate": 0.1875,
+          "first_divergence_position": 6
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "baseline": {
+            "ttft_s": 0.7188437919994612,
+            "generation_tps": 25.19956693826095,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner programmer. Should be simple, clear, maybe with example. Let's produce a concise explanation.assistantfinal",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis",
+                "assistantfinal"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7808573330003128,
+            "generation_tps": 18.322171508680206,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to produce a short explanation of recursion for a beginner. Should be simple, clear, maybe with example. Provide explanation of base case, recursive case, stack, et",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -8.626845177080979,
+          "generation_tps_delta_pct": -27.29172071262333,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 6,
+          "exact_match_rate": 0.2916666666666667,
+          "first_divergence_position": 6
+        },
+        {
+          "prompt_id": "P4",
+          "user_prompt": "Explain the difference between TCP and UDP in plain English.",
+          "baseline": {
+            "ttft_s": 0.747193832999983,
+            "generation_tps": 25.251815781239515,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple. Probably mention that TCP is reliable, connection-oriented, ensures order, erro",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.8463697500001217,
+            "generation_tps": 19.135237232221016,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple, maybe analogies. Provide key differences: reliability, ordering, connection-ori",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -13.273117713237466,
+          "generation_tps_delta_pct": -24.222331582043005,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 21,
+          "exact_match_rate": 0.4583333333333333,
+          "first_divergence_position": 21
+        },
+        {
+          "prompt_id": "P5",
+          "user_prompt": "Describe what photosynthesis does.",
+          "baseline": {
+            "ttft_s": 0.6999460830002135,
+            "generation_tps": 25.950410182931986,
+            "peak_memory_gb": 12.848983764648438,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what photosynthesis does. Likely a concise explanation: process by which plants convert light",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.67251374999978,
+            "generation_tps": 19.71303380182409,
+            "peak_memory_gb": 12.84869384765625,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what the process of photosynthesis does. So we should explain that it converts light energy i",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": 3.9192065884344984,
+          "generation_tps_delta_pct": -24.035752564752606,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 20,
+          "exact_match_rate": 0.4166666666666667,
+          "first_divergence_position": 20
+        }
+      ],
+      "consistency_checks": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "tokens_compared": 16,
+          "top1_agreement": 1.0,
+          "avg_kl_divergence": 0.18662965837938827
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.9375,
+          "avg_kl_divergence": 0.16127970459683638
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.875,
+          "avg_kl_divergence": 0.18405209945922252
+        }
+      ],
+      "aggregate": {
+        "avg_exact_match_rate": 0.35833333333333334,
+        "avg_prefix_match_tokens": 14.8,
+        "avg_ttft_improvement_pct": -3.380135309940703,
+        "avg_generation_tps_delta_pct": -25.57318183659269,
+        "avg_memory_delta_gb": -0.00028991550207138064,
+        "avg_layers_saved": 1.0,
+        "avg_dynamic_layers": 23.0,
+        "avg_baseline_ttft_s": 0.7057016165999812,
+        "avg_dynamic_ttft_s": 0.7309812084000441,
+        "avg_baseline_generation_tps": 25.497060487270566,
+        "avg_dynamic_generation_tps": 18.979525835872103,
+        "dynamic_analysis_trace_rate": 1.0,
+        "baseline_analysis_trace_rate": 1.0,
+        "analysis_style_shift_rate": 0.0,
+        "avg_top1_agreement": 0.9375,
+        "avg_kl_divergence": 0.1773204874784824,
+        "consistency_prompts_evaluated": 3
+      },
+      "flags": {
+        "exact_match_collapse": false,
+        "kl_spike": false,
+        "style_degradation": false,
+        "commercially_meaningful": false
+      }
+    },
+    {
+      "policy": {
+        "key": "C_h22_default_gate",
+        "label": "C",
+        "description": "hard_exit=22, current default streak-2 gate on: soft_skip_start=19, entropy_threshold=0.20, min_entropy_streak=2.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 22,
+        "entropy_threshold": 0.2,
+        "min_entropy_streak": 2,
+        "is_current_default": true
+      },
+      "prompt_results": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "baseline": {
+            "ttft_s": 0.681305500000235,
+            "generation_tps": 25.75375509585071,
+            "peak_memory_gb": 12.849686577916145,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7562092919997667,
+            "generation_tps": 18.659398017539893,
+            "peak_memory_gb": 12.848725277930498,
+            "avg_layers": 22.208333333333332,
+            "avg_layers_saved": 1.7916666666666679,
+            "text_preview": "analysisWe need to explain quantum entanglement in simple terms. Should be approachable, maybe analogies. Keep it concise but thorough. Use simple language. Provide examples like t",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -10.994156365904258,
+          "generation_tps_delta_pct": -27.546884141388055,
+          "memory_delta_gb": -0.0009612999856472015,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 11,
+          "exact_match_rate": 0.25,
+          "first_divergence_position": 11
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "baseline": {
+            "ttft_s": 0.6812188750000132,
+            "generation_tps": 25.329754438069664,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Probably mention political, social, ideological impacts: overthrow o",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.6849358330000541,
+            "generation_tps": 19.18041834101879,
+            "peak_memory_gb": 12.849305722862482,
+            "avg_layers": 22.291666666666668,
+            "avg_layers_saved": 1.7083333333333321,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Should include key aspects: overthrow of monarchy, rise of democrati",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -0.5456334427082385,
+          "generation_tps_delta_pct": -24.277124802318077,
+          "memory_delta_gb": -0.0009613074362277985,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 19,
+          "exact_match_rate": 0.4166666666666667,
+          "first_divergence_position": 19
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "baseline": {
+            "ttft_s": 0.7188437919994612,
+            "generation_tps": 25.19956693826095,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner programmer. Should be simple, clear, maybe with example. Let's produce a concise explanation.assistantfinal",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis",
+                "assistantfinal"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.646608417000607,
+            "generation_tps": 18.320154547611274,
+            "peak_memory_gb": 12.849305722862482,
+            "avg_layers": 22.083333333333332,
+            "avg_layers_saved": 1.9166666666666679,
+            "text_preview": "analysisNeed to write a short explanation of recursion for a beginner. Should explain concept, simple example, how it works, base case, recursion, maybe use simple example like fac",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": 10.048827826408825,
+          "generation_tps_delta_pct": -27.299724663936754,
+          "memory_delta_gb": -0.0009613074362277985,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 3,
+          "exact_match_rate": 0.08333333333333333,
+          "first_divergence_position": 3
+        },
+        {
+          "prompt_id": "P4",
+          "user_prompt": "Explain the difference between TCP and UDP in plain English.",
+          "baseline": {
+            "ttft_s": 0.747193832999983,
+            "generation_tps": 25.251815781239515,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple. Probably mention that TCP is reliable, connection-oriented, ensures order, erro",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.6714322499992704,
+            "generation_tps": 18.394678771665887,
+            "peak_memory_gb": 12.849305722862482,
+            "avg_layers": 22.104166666666668,
+            "avg_layers_saved": 1.8958333333333321,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, concise, maybe use analogies. Should explain reliability, ordering, speed, use cases. A",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": 10.139481839207615,
+          "generation_tps_delta_pct": -27.15502548006089,
+          "memory_delta_gb": -0.0009613074362277985,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 20,
+          "exact_match_rate": 0.4583333333333333,
+          "first_divergence_position": 20
+        },
+        {
+          "prompt_id": "P5",
+          "user_prompt": "Describe what photosynthesis does.",
+          "baseline": {
+            "ttft_s": 0.6999460830002135,
+            "generation_tps": 25.950410182931986,
+            "peak_memory_gb": 12.848983764648438,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what photosynthesis does. Likely a concise explanation: process by which plants convert light",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7606465420012682,
+            "generation_tps": 17.978616919285834,
+            "peak_memory_gb": 12.84802245721221,
+            "avg_layers": 22.166666666666668,
+            "avg_layers_saved": 1.8333333333333321,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what the process does. So explain that it converts light into energy, produces oxygen, etc. P",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -8.672162110097297,
+          "generation_tps_delta_pct": -30.719334328246312,
+          "memory_delta_gb": -0.0009613074362277985,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 20,
+          "exact_match_rate": 0.4583333333333333,
+          "first_divergence_position": 20
+        }
+      ],
+      "consistency_checks": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.8125,
+          "avg_kl_divergence": 0.7152178469541468
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "tokens_compared": 16,
+          "top1_agreement": 1.0,
+          "avg_kl_divergence": 0.25173110915238794
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.875,
+          "avg_kl_divergence": 0.6289359013599096
+        }
+      ],
+      "aggregate": {
+        "avg_exact_match_rate": 0.33333333333333337,
+        "avg_prefix_match_tokens": 14.6,
+        "avg_ttft_improvement_pct": -0.004728450618670621,
+        "avg_generation_tps_delta_pct": -27.399618683190017,
+        "avg_memory_delta_gb": -0.0009613059461116791,
+        "avg_layers_saved": 1.8291666666666664,
+        "avg_dynamic_layers": 22.170833333333334,
+        "avg_baseline_ttft_s": 0.7057016165999812,
+        "avg_dynamic_ttft_s": 0.7039664668001933,
+        "avg_baseline_generation_tps": 25.497060487270566,
+        "avg_dynamic_generation_tps": 18.506653319424338,
+        "dynamic_analysis_trace_rate": 1.0,
+        "baseline_analysis_trace_rate": 1.0,
+        "analysis_style_shift_rate": 0.0,
+        "avg_top1_agreement": 0.8958333333333334,
+        "avg_kl_divergence": 0.5319616191554815,
+        "consistency_prompts_evaluated": 3
+      },
+      "flags": {
+        "exact_match_collapse": true,
+        "kl_spike": false,
+        "style_degradation": false,
+        "commercially_meaningful": false
+      }
+    },
+    {
+      "policy": {
+        "key": "D_h22_strict_gate",
+        "label": "D",
+        "description": "hard_exit=22, stricter gate: same layer schedule as default but requires lower entropy (threshold=0.15).",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 22,
+        "entropy_threshold": 0.15,
+        "min_entropy_streak": 2,
+        "is_current_default": false
+      },
+      "prompt_results": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "baseline": {
+            "ttft_s": 0.681305500000235,
+            "generation_tps": 25.75375509585071,
+            "peak_memory_gb": 12.849686577916145,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7285366660016734,
+            "generation_tps": 18.795063784740165,
+            "peak_memory_gb": 12.849396668374538,
+            "avg_layers": 22.208333333333332,
+            "avg_layers_saved": 1.7916666666666679,
+            "text_preview": "analysisWe need to explain quantum entanglement in simple terms. The user wants a simple explanation. We should explain what it is, how it works, maybe use analogies, mention that ",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -6.932450420761627,
+          "generation_tps_delta_pct": -27.020103612896772,
+          "memory_delta_gb": -0.0002899095416069031,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 11,
+          "exact_match_rate": 0.25,
+          "first_divergence_position": 11
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "baseline": {
+            "ttft_s": 0.6812188750000132,
+            "generation_tps": 25.329754438069664,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Probably mention political, social, ideological impacts: overthrow o",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7590732499993464,
+            "generation_tps": 19.04439159629868,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 22.333333333333332,
+            "avg_layers_saved": 1.6666666666666679,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Should include key aspects: overthrow of monarchy, rise of republica",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -11.428687292220392,
+          "generation_tps_delta_pct": -24.81414834533224,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 19,
+          "exact_match_rate": 0.4166666666666667,
+          "first_divergence_position": 19
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "baseline": {
+            "ttft_s": 0.7188437919994612,
+            "generation_tps": 25.19956693826095,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner programmer. Should be simple, clear, maybe with example. Let's produce a concise explanation.assistantfinal",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis",
+                "assistantfinal"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7849992920000659,
+            "generation_tps": 19.2840894619747,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 22.208333333333332,
+            "avg_layers_saved": 1.7916666666666679,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner. Should be concise, clear, maybe with example. Use simple language. Provide explanation of concept, how it ",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -9.203042543720576,
+          "generation_tps_delta_pct": -23.474520378779516,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 15,
+          "exact_match_rate": 0.3333333333333333,
+          "first_divergence_position": 15
+        },
+        {
+          "prompt_id": "P4",
+          "user_prompt": "Explain the difference between TCP and UDP in plain English.",
+          "baseline": {
+            "ttft_s": 0.747193832999983,
+            "generation_tps": 25.251815781239515,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple. Probably mention that TCP is reliable, connection-oriented, ensures order, erro",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.6948839169999701,
+            "generation_tps": 19.38385496226015,
+            "peak_memory_gb": 12.849305722862482,
+            "avg_layers": 22.208333333333332,
+            "avg_layers_saved": 1.7916666666666679,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple, maybe use analogies. Provide key differences: reliability, order, connection, s",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": 7.000849537259776,
+          "generation_tps_delta_pct": -23.23777770998506,
+          "memory_delta_gb": -0.0009613074362277985,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 21,
+          "exact_match_rate": 0.4791666666666667,
+          "first_divergence_position": 21
+        },
+        {
+          "prompt_id": "P5",
+          "user_prompt": "Describe what photosynthesis does.",
+          "baseline": {
+            "ttft_s": 0.6999460830002135,
+            "generation_tps": 25.950410182931986,
+            "peak_memory_gb": 12.848983764648438,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what photosynthesis does. Likely a concise explanation: process by which plants convert light",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7141297079997457,
+            "generation_tps": 18.37135883830142,
+            "peak_memory_gb": 12.84869384765625,
+            "avg_layers": 22.25,
+            "avg_layers_saved": 1.75,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what the process does. So explain that it converts light into energy, produces oxygen, etc. P",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -2.026388223895219,
+          "generation_tps_delta_pct": -29.20590191524385,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 20,
+          "exact_match_rate": 0.4583333333333333,
+          "first_divergence_position": 20
+        }
+      ],
+      "consistency_checks": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.9375,
+          "avg_kl_divergence": 0.642740877576216
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "tokens_compared": 16,
+          "top1_agreement": 1.0,
+          "avg_kl_divergence": 0.22892402238676368
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.9375,
+          "avg_kl_divergence": 0.5834800520660792
+        }
+      ],
+      "aggregate": {
+        "avg_exact_match_rate": 0.3875,
+        "avg_prefix_match_tokens": 17.2,
+        "avg_ttft_improvement_pct": -4.5179437886676075,
+        "avg_generation_tps_delta_pct": -25.55049039244749,
+        "avg_memory_delta_gb": -0.00042419359087944033,
+        "avg_layers_saved": 1.7583333333333342,
+        "avg_dynamic_layers": 22.241666666666667,
+        "avg_baseline_ttft_s": 0.7057016165999812,
+        "avg_dynamic_ttft_s": 0.7363245666001603,
+        "avg_baseline_generation_tps": 25.497060487270566,
+        "avg_dynamic_generation_tps": 18.97575172871502,
+        "dynamic_analysis_trace_rate": 1.0,
+        "baseline_analysis_trace_rate": 1.0,
+        "analysis_style_shift_rate": 0.0,
+        "avg_top1_agreement": 0.9583333333333334,
+        "avg_kl_divergence": 0.4850483173430196,
+        "consistency_prompts_evaluated": 3
+      },
+      "flags": {
+        "exact_match_collapse": false,
+        "kl_spike": false,
+        "style_degradation": false,
+        "commercially_meaningful": false
+      }
+    },
+    {
+      "policy": {
+        "key": "E_h22_very_conservative_gate",
+        "label": "E",
+        "description": "hard_exit=22, very conservative gate: starts at layer 20, threshold=0.10, streak=2. If it opens at all, it can only skip layer 22.",
+        "soft_skip_start_layer": 20,
+        "hard_exit_layer": 22,
+        "entropy_threshold": 0.1,
+        "min_entropy_streak": 2,
+        "is_current_default": false
+      },
+      "prompt_results": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "baseline": {
+            "ttft_s": 0.681305500000235,
+            "generation_tps": 25.75375509585071,
+            "peak_memory_gb": 12.849686577916145,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.6827005420000205,
+            "generation_tps": 19.32326532965879,
+            "peak_memory_gb": 12.849396668374538,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to explain quantum entanglement in simple terms. The user wants a simple explanation. We should keep it accessible, maybe use analogies like two dice, or a pair of ",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -0.20476012593249004,
+          "generation_tps_delta_pct": -24.969134567983694,
+          "memory_delta_gb": -0.0002899095416069031,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 11,
+          "exact_match_rate": 0.22916666666666666,
+          "first_divergence_position": 11
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "baseline": {
+            "ttft_s": 0.6812188750000132,
+            "generation_tps": 25.329754438069664,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Probably mention political, social, ideological impacts: overthrow o",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7512247920003574,
+            "generation_tps": 18.91694487100572,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to produce a concise summary of why the French Revolution was historically important. Should mention key aspects: overthrow of monarchy, rise of republicanism, spre",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -10.276567424873956,
+          "generation_tps_delta_pct": -25.317298605255058,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 6,
+          "exact_match_rate": 0.1875,
+          "first_divergence_position": 6
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "baseline": {
+            "ttft_s": 0.7188437919994612,
+            "generation_tps": 25.19956693826095,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner programmer. Should be simple, clear, maybe with example. Let's produce a concise explanation.assistantfinal",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis",
+                "assistantfinal"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.83095883399983,
+            "generation_tps": 18.087177115027615,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to produce a short explanation of recursion for a beginner. Should be simple, clear, maybe with example. Provide explanation of base case, recursive case, stack, et",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -15.596579291381394,
+          "generation_tps_delta_pct": -28.224254173330525,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 6,
+          "exact_match_rate": 0.2916666666666667,
+          "first_divergence_position": 6
+        },
+        {
+          "prompt_id": "P4",
+          "user_prompt": "Explain the difference between TCP and UDP in plain English.",
+          "baseline": {
+            "ttft_s": 0.747193832999983,
+            "generation_tps": 25.251815781239515,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple. Probably mention that TCP is reliable, connection-oriented, ensures order, erro",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.8253663329996925,
+            "generation_tps": 17.980932842060238,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple, maybe analogies. Provide key differences: reliability, order, connection, speed",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -10.462144700237552,
+          "generation_tps_delta_pct": -28.793505394495543,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 21,
+          "exact_match_rate": 0.5,
+          "first_divergence_position": 21
+        },
+        {
+          "prompt_id": "P5",
+          "user_prompt": "Describe what photosynthesis does.",
+          "baseline": {
+            "ttft_s": 0.6999460830002135,
+            "generation_tps": 25.950410182931986,
+            "peak_memory_gb": 12.848983764648438,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what photosynthesis does. Likely a concise explanation: process by which plants convert light",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.801736040999458,
+            "generation_tps": 17.868621905618348,
+            "peak_memory_gb": 12.84869384765625,
+            "avg_layers": 23.0,
+            "avg_layers_saved": 1.0,
+            "text_preview": "analysisWe need to answer: \"Describe what photosynthesis does.\" Provide explanation: process by which plants convert light into energy, produce oxygen, etc. Provide details: light-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -14.542542700280167,
+          "generation_tps_delta_pct": -31.14320051337441,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 3,
+          "exact_match_rate": 0.08333333333333333,
+          "first_divergence_position": 3
+        }
+      ],
+      "consistency_checks": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.9375,
+          "avg_kl_divergence": 0.5416593800500777
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.9375,
+          "avg_kl_divergence": 0.2593260061844376
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.875,
+          "avg_kl_divergence": 0.39009544745340463
+        }
+      ],
+      "aggregate": {
+        "avg_exact_match_rate": 0.25833333333333336,
+        "avg_prefix_match_tokens": 9.4,
+        "avg_ttft_improvement_pct": -10.216518848541112,
+        "avg_generation_tps_delta_pct": -27.689478650887843,
+        "avg_memory_delta_gb": -0.00028991550207138064,
+        "avg_layers_saved": 1.0,
+        "avg_dynamic_layers": 23.0,
+        "avg_baseline_ttft_s": 0.7057016165999812,
+        "avg_dynamic_ttft_s": 0.7783973083998716,
+        "avg_baseline_generation_tps": 25.497060487270566,
+        "avg_dynamic_generation_tps": 18.435388412674143,
+        "dynamic_analysis_trace_rate": 1.0,
+        "baseline_analysis_trace_rate": 1.0,
+        "analysis_style_shift_rate": 0.0,
+        "avg_top1_agreement": 0.9166666666666666,
+        "avg_kl_divergence": 0.39702694456264,
+        "consistency_prompts_evaluated": 3
+      },
+      "flags": {
+        "exact_match_collapse": true,
+        "kl_spike": false,
+        "style_degradation": false,
+        "commercially_meaningful": false
+      }
+    },
+    {
+      "policy": {
+        "key": "F_h21_no_skip",
+        "label": "F",
+        "description": "hard_exit=21, soft skip off. Reference only for the more aggressive hard-exit depth.",
+        "soft_skip_start_layer": 19,
+        "hard_exit_layer": 21,
+        "entropy_threshold": -1.0,
+        "min_entropy_streak": 2,
+        "is_current_default": false
+      },
+      "prompt_results": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "baseline": {
+            "ttft_s": 0.681305500000235,
+            "generation_tps": 25.75375509585071,
+            "peak_memory_gb": 12.849686577916145,
+            "text_preview": "analysisWe need to explain quantum entanglement simply. Provide analogies, mention that two particles share a state, measurement of one instantly affects the other, no faster-than-",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7998036250010045,
+            "generation_tps": 18.36350111371997,
+            "peak_memory_gb": 12.849396668374538,
+            "avg_layers": 22.0,
+            "avg_layers_saved": 2.0,
+            "text_preview": "analysisWe need to explain quantum entang, in simple terms. Should be accessible, maybe analogies, but not overly technical. Should mention that two or more particles can be correl",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -17.392803228614568,
+          "generation_tps_delta_pct": -28.695830781280566,
+          "memory_delta_gb": -0.0002899095416069031,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 10,
+          "exact_match_rate": 0.20833333333333334,
+          "first_divergence_position": 10
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "baseline": {
+            "ttft_s": 0.6812188750000132,
+            "generation_tps": 25.329754438069664,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to summarize why the French Revolution was historically important. Provide concise explanation. Probably mention political, social, ideological impacts: overthrow o",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7811892089994217,
+            "generation_tps": 18.72319091773534,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 22.0,
+            "avg_layers_saved": 2.0,
+            "text_preview": "analysisWe need to produce a concise summary of why the French Revolution was historically important. Should mention political, social, ideological, and global impact: overthrow of",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -14.675214922576322,
+          "generation_tps_delta_pct": -26.08222490465564,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 6,
+          "exact_match_rate": 0.2916666666666667,
+          "first_divergence_position": 6
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "baseline": {
+            "ttft_s": 0.7188437919994612,
+            "generation_tps": 25.19956693826095,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner programmer. Should be simple, clear, maybe with example. Let's produce a concise explanation.assistantfinal",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis",
+                "assistantfinal"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.7787827499996638,
+            "generation_tps": 18.777462043232724,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 22.0,
+            "avg_layers_saved": 2.0,
+            "text_preview": "analysisWe need to write a short explanation of recursion for a beginner. Should be concise, approachable, maybe with example. Should explain concept, base case, recursive case, st",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -8.338245202547075,
+          "generation_tps_delta_pct": -25.4849811933769,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 15,
+          "exact_match_rate": 0.3125,
+          "first_divergence_position": 15
+        },
+        {
+          "prompt_id": "P4",
+          "user_prompt": "Explain the difference between TCP and UDP in plain English.",
+          "baseline": {
+            "ttft_s": 0.747193832999983,
+            "generation_tps": 25.251815781239515,
+            "peak_memory_gb": 12.85026703029871,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be clear, simple. Probably mention that TCP is reliable, connection-oriented, ensures order, erro",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.8254082080002263,
+            "generation_tps": 18.034390527533365,
+            "peak_memory_gb": 12.849977113306522,
+            "avg_layers": 22.0,
+            "avg_layers_saved": 2.0,
+            "text_preview": "analysisWe need to explain difference between TCP and UDP in plain English. Should be accessible, maybe analogies. Should cover reliability, ordering, connection, speed, use cases.",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -10.467749002452633,
+          "generation_tps_delta_pct": -28.581807012342598,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 18,
+          "exact_match_rate": 0.4166666666666667,
+          "first_divergence_position": 18
+        },
+        {
+          "prompt_id": "P5",
+          "user_prompt": "Describe what photosynthesis does.",
+          "baseline": {
+            "ttft_s": 0.6999460830002135,
+            "generation_tps": 25.950410182931986,
+            "peak_memory_gb": 12.848983764648438,
+            "text_preview": "analysisThe user asks: \"Describe what photosynthesis does.\" They want a description of what photosynthesis does. Likely a concise explanation: process by which plants convert light",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "dynamic": {
+            "ttft_s": 0.8482709170002636,
+            "generation_tps": 17.959400675434743,
+            "peak_memory_gb": 12.84869384765625,
+            "avg_layers": 22.0,
+            "avg_layers_saved": 2.0,
+            "text_preview": "analysisWe need to answer: \"Describe what photosynthesis does.\" Provide explanation: process, purpose, outputs, inputs, significance. Should be concise but thorough. Use simple lan",
+            "analysis_style": {
+              "has_analysis_like_trace": true,
+              "markers": [
+                "analysis"
+              ]
+            }
+          },
+          "ttft_improvement_pct": -21.190894213491124,
+          "generation_tps_delta_pct": -30.793384193799994,
+          "memory_delta_gb": -0.0002899169921875,
+          "analysis_style_shift": false,
+          "prefix_match_tokens": 3,
+          "exact_match_rate": 0.0625,
+          "first_divergence_position": 3
+        }
+      ],
+      "consistency_checks": [
+        {
+          "prompt_id": "P1",
+          "user_prompt": "Explain quantum entanglement in simple terms.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.8125,
+          "avg_kl_divergence": 0.7143301513197002
+        },
+        {
+          "prompt_id": "P2",
+          "user_prompt": "Summarize why the French Revolution was historically important.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.9375,
+          "avg_kl_divergence": 0.2089047160661721
+        },
+        {
+          "prompt_id": "P3",
+          "user_prompt": "Write a short explanation of recursion for a beginner programmer.",
+          "tokens_compared": 16,
+          "top1_agreement": 0.9375,
+          "avg_kl_divergence": 0.3374980716803293
+        }
+      ],
+      "aggregate": {
+        "avg_exact_match_rate": 0.25833333333333336,
+        "avg_prefix_match_tokens": 10.4,
+        "avg_ttft_improvement_pct": -14.412981313936346,
+        "avg_generation_tps_delta_pct": -27.927645617091137,
+        "avg_memory_delta_gb": -0.00028991550207138064,
+        "avg_layers_saved": 2.0,
+        "avg_dynamic_layers": 22.0,
+        "avg_baseline_ttft_s": 0.7057016165999812,
+        "avg_dynamic_ttft_s": 0.806690941800116,
+        "avg_baseline_generation_tps": 25.497060487270566,
+        "avg_dynamic_generation_tps": 18.371589055531228,
+        "dynamic_analysis_trace_rate": 1.0,
+        "baseline_analysis_trace_rate": 1.0,
+        "analysis_style_shift_rate": 0.0,
+        "avg_top1_agreement": 0.8958333333333334,
+        "avg_kl_divergence": 0.4202443130220672,
+        "consistency_prompts_evaluated": 3
+      },
+      "flags": {
+        "exact_match_collapse": true,
+        "kl_spike": false,
+        "style_degradation": false,
+        "commercially_meaningful": false
+      }
+    }
+  ],
+  "ranking_summary": {
+    "best_quality_config": "A_h23_no_skip",
+    "best_speed_config": "C_h22_default_gate",
+    "best_overall_quality_first_speed_second": "A_h23_no_skip",
+    "commercially_meaningful_configs": [],
+    "recommended_next_default": {
+      "mode": "dynamic_disabled_baseline",
+      "policy_key": "A_h23_no_skip",
+      "reason": "No dynamic configuration is strong enough to recommend as the default. Use full-depth baseline for now; if a policy must stay configured in code, keep the near-no-op layer-23 control."
+    }
+  },
+  "best_quality_config": "A_h23_no_skip",
+  "best_speed_config": "C_h22_default_gate",
+  "recommended_next_default": {
+    "mode": "dynamic_disabled_baseline",
+    "policy_key": "A_h23_no_skip",
+    "reason": "No dynamic configuration is strong enough to recommend as the default. Use full-depth baseline for now; if a policy must stay configured in code, keep the near-no-op layer-23 control."
+  }
+}

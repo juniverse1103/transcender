@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Transcender: Cross-Layer Composition Control for Adaptive Transformer Inference"
+type: software
+authors:
+  - family-names: "[Update before publication]"
+    given-names: "[Update before publication]"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+repository-code: "https://github.com/[owner]/transcender"
+license: MIT
+version: "0.1.0"
+date-released: "2026-03-22"
+keywords:
+  - adaptive inference
+  - early exit
+  - transformer
+  - cross-layer composition
+  - logit blending
+  - mixture of experts
+abstract: >-
+  Transcender is a cross-layer composition control framework for adaptive
+  transformer inference. It demonstrates that agreement-aware logit-space
+  blending enables practical adaptive-depth inference on MoE models while
+  characterizing the limitations of current approaches on dense architectures.
