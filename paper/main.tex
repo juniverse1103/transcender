@@ -32,7 +32,7 @@ We present evidence supporting this reframing across three tracks. Track~A estab
 \section{Contributions}
 
 \begin{enumerate}
-\item \textbf{The Subspace Paradox.} We show that hidden states from different transformer layers occupy geometrically separated subspaces, making hidden-state interpolation structurally invalid for cross-layer composition. Measured separation ratios reach 4.11$\times$ on GPT-OSS 20B and 2.46$\times$ on Gemma~3 4B-IT.
+\item \textbf{Cross-layer subspace mismatch.} We measure that hidden states from different transformer layers occupy geometrically separated subspaces, indicating that naive hidden-state interpolation is empirically unsupported as a composition mechanism. Measured separation ratios reach 4.11$\times$ on GPT-OSS 20B and 2.46$\times$ on Gemma~3 4B-IT.
 
 \item \textbf{Agreement-aware logit-space composition.} We propose a conservative composition rule that blends logits only when the shallow and deep paths agree on token identity. This outperforms both fixed exit and naive blending across the tested MoE and dense architectures.
 
@@ -45,7 +45,7 @@ We present evidence supporting this reframing across three tracks. Track~A estab
 
 \section{Method}
 
-\subsection{Cross-Layer Geometric Separation}
+\subsection{Cross-Layer Subspace Mismatch}
 
 Let $h_i$ and $h_j$ denote hidden states from layers $i$ and $j$ with $i < j$. When projected into a shared PCA space, we measure cross-layer separation using
 \begin{equation}
@@ -53,11 +53,11 @@ Let $h_i$ and $h_j$ denote hidden states from layers $i$ and $j$ with $i < j$. W
 \frac{\lVert c_i - c_j \rVert_2}{\max(\sigma_i,\sigma_j)},
 \label{eq:separation}
 \end{equation}
-where $c_i$ and $c_j$ are cluster centroids and $\sigma_i$, $\sigma_j$ are within-cluster standard deviations. Ratios exceeding 2$\times$ indicate that hidden states from different layers are not safely interpolable; we observe 4.11$\times$ on GPT-OSS 20B and 2.46$\times$ on Gemma~3 4B-IT.
+where $c_i$ and $c_j$ are cluster centroids and $\sigma_i$, $\sigma_j$ are within-cluster standard deviations. Ratios exceeding 2$\times$ suggest that hidden states from different layers are geometrically misaligned, making naive interpolation between them empirically unstable. We observe 4.11$\times$ on GPT-OSS 20B and 2.46$\times$ on Gemma~3 4B-IT under our setup.
 
 \subsection{Agreement-Aware Logit Composition}
 
-Rather than blending hidden states, Transcender projects intermediate and final representations into a shared logit space and composes them there. Let $\ell_t^e$ denote the logits at exit layer $e$ for token step $t$, and $\ell_t^N$ the logits at full depth $N$. The composition rule is
+Given the observed cross-layer subspace mismatch, Transcender avoids hidden-state blending and instead projects intermediate and final representations into a shared logit space for composition. Let $\ell_t^e$ denote the logits at exit layer $e$ for token step $t$, and $\ell_t^N$ the logits at full depth $N$. The composition rule is
 \begin{equation}
 \ell_t^{\mathrm{out}} =
 \begin{cases}
