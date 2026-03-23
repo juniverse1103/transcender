@@ -50,28 +50,89 @@ P3_PROMPT_ID = "P3"
 MEANINGFUL_SAVINGS_THRESHOLD = 0.10
 
 PROMPTS = [
-    # --- Original prompts (P1-P5) ---
-    "Explain quantum entanglement in simple terms.",
-    "Summarize why the French Revolution was historically important.",
-    "Write a short explanation of recursion for a beginner programmer.",
-    "Explain the difference between TCP and UDP in plain English.",
-    "Describe what photosynthesis does.",
+    # =====================================================================
+    # Original suite (P1-P16) — kept in place for backward compatibility.
+    # P1 is always the warmup prompt (discarded from scored aggregates).
+    # =====================================================================
+    # --- Original expository (P1-P5) ---
+    "Explain quantum entanglement in simple terms.",                          # P1 (warmup)
+    "Summarize why the French Revolution was historically important.",        # P2
+    "Write a short explanation of recursion for a beginner programmer.",      # P3
+    "Explain the difference between TCP and UDP in plain English.",           # P4
+    "Describe what photosynthesis does.",                                     # P5
     # --- Code/technical (P6-P7) ---
-    "Write a Python function that checks if a string is a palindrome.",
-    "Explain what a hash table is and when you would use one.",
+    "Write a Python function that checks if a string is a palindrome.",      # P6
+    "Explain what a hash table is and when you would use one.",              # P7
     # --- Reasoning/logic (P8-P9) ---
-    "A farmer has 17 sheep. All but 9 run away. How many are left and why?",
-    "If it takes 5 machines 5 minutes to make 5 widgets, how long would it take 100 machines to make 100 widgets?",
+    "A farmer has 17 sheep. All but 9 run away. How many are left and why?", # P8
+    "If it takes 5 machines 5 minutes to make 5 widgets, how long would it take 100 machines to make 100 widgets?",  # P9
     # --- Creative/open-ended (P10-P11) ---
-    "Write the opening paragraph of a mystery story set in a library.",
-    "Describe a sunset to someone who has never seen one.",
+    "Write the opening paragraph of a mystery story set in a library.",      # P10
+    "Describe a sunset to someone who has never seen one.",                   # P11
     # --- Short-answer/factual (P12-P14) ---
-    "What is the capital of Australia?",
-    "What does the HTTP status code 404 mean?",
-    "Name three noble gases.",
+    "What is the capital of Australia?",                                      # P12
+    "What does the HTTP status code 404 mean?",                              # P13
+    "Name three noble gases.",                                                # P14
     # --- List/structured output (P15-P16) ---
-    "List five common sorting algorithms and one sentence about each.",
-    "List the planets of the solar system in order from the Sun.",
+    "List five common sorting algorithms and one sentence about each.",       # P15
+    "List the planets of the solar system in order from the Sun.",            # P16
+    # =====================================================================
+    # Expanded suite (P17-P64) — added to increase N from 15 to 63.
+    # =====================================================================
+    # --- Expository (P17-P24) ---
+    "Explain how a transformer neural network processes a sentence.",         # P17
+    "Describe the greenhouse effect and why it matters for climate.",         # P18
+    "Explain what an API is to someone with no programming background.",      # P19
+    "Describe how vaccines train the immune system.",                         # P20
+    "Explain the difference between machine learning and traditional programming.",  # P21
+    "Describe how a blockchain works at a high level.",                       # P22
+    "Explain what inflation is and how it affects purchasing power.",         # P23
+    "Describe the water cycle in four or five sentences.",                    # P24
+    # --- Code/technical (P25-P32) ---
+    "Write a Python function that reverses a linked list.",                   # P25
+    "Explain the difference between a stack and a queue.",                    # P26
+    "Write a Python function that finds the second largest number in a list.",  # P27
+    "Explain what Big O notation measures and give two examples.",            # P28
+    "Write a Python function that counts the vowels in a string.",           # P29
+    "Explain the difference between SQL and NoSQL databases.",               # P30
+    "Write a Python function that checks if two strings are anagrams.",      # P31
+    "Explain what a REST API endpoint is and how it handles requests.",      # P32
+    # --- Reasoning/logic (P33-P40) ---
+    "You have two ropes that each take exactly one hour to burn, but burn unevenly. How can you measure 45 minutes?",  # P33
+    "Three boxes are labeled Apples, Oranges, and Mixed, but all labels are wrong. You pick one fruit from one box. How do you label all three correctly?",  # P34
+    "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost?",  # P35
+    "If you flip a fair coin three times, what is the probability of getting exactly two heads?",  # P36
+    "You are in a room with two doors and two guards. One always lies and one always tells the truth. What single question can you ask to find the safe door?",  # P37
+    "A snail climbs 3 feet up a wall each day and slides back 2 feet each night. If the wall is 10 feet tall, how many days does it take to reach the top?",  # P38
+    "What is the minimum number of weighings needed to find one counterfeit coin among 8 coins using a balance scale?",  # P39
+    "You have 12 identical-looking coins. One is heavier or lighter than the rest. With three weighings on a balance scale, how would you find it?",  # P40
+    # --- Creative/open-ended (P41-P48) ---
+    "Write the opening paragraph of a science fiction story set on Mars.",    # P41
+    "Describe the sound of rain on a tin roof.",                              # P42
+    "Write a short fable about a tortoise and an eagle.",                     # P43
+    "Describe a busy city market to someone who has never visited one.",      # P44
+    "Write a haiku about a winter morning.",                                  # P45
+    "Describe the feeling of solving a difficult puzzle.",                    # P46
+    "Write the first paragraph of a detective story set in Tokyo.",           # P47
+    "Describe the smell of a bakery early in the morning.",                   # P48
+    # --- Short-answer/factual (P49-P56) ---
+    "What is the chemical formula for table salt?",                           # P49
+    "What year did the Berlin Wall fall?",                                    # P50
+    "What is the speed of light in a vacuum, approximately?",                # P51
+    "What programming language was originally developed by Guido van Rossum?",  # P52
+    "What is the largest organ in the human body?",                           # P53
+    "What does DNA stand for?",                                               # P54
+    "What is the boiling point of water at sea level in Celsius?",           # P55
+    "Name the four fundamental forces in physics.",                           # P56
+    # --- List/structured output (P57-P64) ---
+    "List five programming paradigms and one sentence about each.",           # P57
+    "List the first ten elements of the periodic table in order.",            # P58
+    "List four types of machine learning and give one example of each.",      # P59
+    "List the seven continents in order of land area from largest to smallest.",  # P60
+    "List five common data structures and when you would use each.",          # P61
+    "List three differences between Python and JavaScript.",                  # P62
+    "List the phases of the Moon in order.",                                  # P63
+    "List five renewable energy sources and one advantage of each.",          # P64
 ]
 
 
