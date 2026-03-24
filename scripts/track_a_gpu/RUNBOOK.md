@@ -124,6 +124,25 @@ Gemma 3 should be discussed as a dense family with checkpoint-specific size vari
 
 These are structural off-MLX validation results under the manual-reference path. They do not turn this script into a serving-speed benchmark, and `composed_exact_match = 1.0` remains a fallback-path diagnostic rather than the main claim.
 
+### Cliff Probes
+
+Cliff probes extending one layer further back confirm monotonic degradation on GPU:
+- `openai/gpt-oss-20b` with `--exit-layers 20 21 22`: L20=`0.589`, L21=`0.808`, L22=`0.879`. Biggest jump at L20→L21 (+0.219). Stable across sequence lengths (t48 and t64 within noise).
+- `Qwen/Qwen3-30B-A3B` with `--exit-layers 44 45 46`: L44=`0.793`, L45=`0.832`, L46=`0.916`. Gradual monotonic degradation on GPU, in stark contrast to the MLX sharp cliff (L46=0.837 → L45=0.463).
+
+### Multi-Oracle Diagnostics
+
+Multi-oracle runs with 4 oracle modes (`top1_agree`, `top1_agree_margin`, `top1_agree_entropy`, `two_layer_top1_agree`):
+- GPT-OSS L22: top1_agree=87.8%, margin(τ=0.1)=86.9%, entropy(τ=1.5)=71.0%, two_layer=77.6%. Entropy gating at τ=1.5 is very aggressive on this model.
+- Qwen3 L46: top1_agree=91.6%, margin(τ=0.1)=91.1%, entropy(τ=1.5)=90.5%, two_layer=82.7%. Entropy gating barely affects Qwen3. Oracle design is model-sensitive.
+
+### Stage B Karma Logistic (GPU)
+
+Token-row analysis with karma logistic fitting:
+- GPT-OSS (3039 rows): karma precision=`0.859`, error=`0.085`. Entropy baseline: precision=`0.564`, error=`0.288`. Delta: +0.295 precision, −0.203 error.
+- Qwen3 (3072 rows): karma precision=`0.864`, error=`0.078`. Entropy baseline: precision=`0.529`, error=`0.466`. Delta: +0.335 precision, −0.388 error.
+- Token triage: 81–83% earlier_correct, 9–10% need_penultimate, 8–9% need_full_depth.
+
 ## What The Script Supports
 
 The manual-reference path now supports these HF backbone families explicitly:

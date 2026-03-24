@@ -33,7 +33,15 @@ These files informed development or provide retained reference data, but they ar
 | `artifacts/track_a/transcender_top1_agree_benchmark.json` | Earlier GPT-OSS blend-strategy comparison retained for reference |
 | `artifacts/track_a_gpu/gpt_oss_20b_gpu_reproduction_n63_bf16.json` | GPT-OSS 20B N=63 GPU validation on NVIDIA H200 (bfloat16, MXFP4→bf16 dequant). L21=0.808 L22=0.879 raw-exit EM. Definitive bf16 run superseding earlier fp16 results. |
 | `artifacts/track_a_gpu/qwen3_30b_a3b_gpu_reproduction_n63.json` | Qwen3-30B-A3B N=63 GPU validation on NVIDIA H200 (float16). L45=0.832 L46=0.916 raw-exit EM. Penultimate advantage holds but quality cliff is softer than on MLX. |
-| `artifacts/track_a_gpu/*.json` | Local GPU validation traces and shared-context benchmark summaries. These are diagnostic off-MLX outputs, not direct replacements for the canonical MLX Track A artifacts. Run a single-prompt debug trace first; do not interpret aggregate GPU output before verifying raw-exit divergence and sane composed fallback behavior. |
+| `artifacts/track_a_gpu/gpt_oss_cliff_L20_L21_L22.json` | GPT-OSS cliff probe: L20=0.589, L21=0.808, L22=0.879. Monotonic degradation, biggest jump at L20→L21 (+0.219). |
+| `artifacts/track_a_gpu/qwen3_cliff_L44_L45_L46.json` | Qwen3 cliff probe: L44=0.793, L45=0.832, L46=0.916. Gradual monotonic degradation on GPU. |
+| `artifacts/track_a_gpu/gpt_oss_multi_oracle_n63.json` | GPT-OSS multi-oracle diagnostics (4 modes). Entropy gating at τ=1.5 drops L22 acceptance from 87.8% to 71.0%. |
+| `artifacts/track_a_gpu/qwen3_multi_oracle_n63.json` | Qwen3 multi-oracle diagnostics (4 modes). Entropy gating barely affects L46: 91.6% → 90.5%. |
+| `artifacts/track_a_gpu/gpt_oss_token_rows_n64.jsonl` | GPT-OSS per-token row data (3039 rows) for Stage B karma fitting. |
+| `artifacts/track_a_gpu/qwen3_token_rows_n64.jsonl` | Qwen3 per-token row data (3072 rows) for Stage B karma fitting. |
+| `artifacts/track_a_gpu/gpt_oss_stage_b_karma.json` | GPT-OSS karma logistic: precision=0.859, error=0.085. Entropy baseline: precision=0.564, error=0.288. |
+| `artifacts/track_a_gpu/qwen3_stage_b_karma.json` | Qwen3 karma logistic: precision=0.864, error=0.078. Entropy baseline: precision=0.529, error=0.466. |
+| `artifacts/track_a_gpu/*.json` | Local GPU validation traces and shared-context benchmark summaries. These are diagnostic off-MLX outputs, not direct replacements for the canonical MLX Track A artifacts. |
 | `artifacts/dense_followup/llama31_8b_exit_sweep.json` | Llama 3.1 8B exit-layer agreement sweep used for dense frontier discovery |
 | `artifacts/dense_followup/llama31_8b_exit_sweep_summary.csv` | CSV summary for the Llama 3.1 8B exit-layer agreement sweep |
 | `artifacts/dense_followup/transcender_track_c_gemma_advanced_probe_L20_results.json` | Gemma L20 advanced probe with replay repair; quality improved but realized skipping collapsed |
