@@ -601,6 +601,44 @@ def compose_top1_agree_logits(
     return full_logits, False
 
 
+def build_step_diagnostics(
+    full_hidden: torch.Tensor,
+    exit_hidden: torch.Tensor,
+    full_logits: torch.Tensor,
+    exit_logits: torch.Tensor,
+    full_top1: int,
+    exit_top1: int,
+    softcap: Optional[float],
+) -> Dict[str, Any]:
+    hidden_diff = (exit_hidden.float() - full_hidden.float()).abs()
+    logits_diff = (exit_logits.float() - full_logits.float()).abs()
+    full_max_abs_logit = float(full_logits.float().abs().max().item())
+    exit_max_abs_logit = float(exit_logits.float().abs().max().item())
+
+    diagnostics: Dict[str, Any] = {
+        "hidden_exact_equal_to_full": bool(torch.equal(exit_hidden, full_hidden)),
+        "hidden_max_abs_diff_vs_full": round(float(hidden_diff.max().item()), 8),
+        "logits_exact_equal_to_full": bool(torch.equal(exit_logits, full_logits)),
+        "logits_max_abs_diff_vs_full": round(float(logits_diff.max().item()), 8),
+        "same_argmax_but_logits_differ": bool(
+            full_top1 == exit_top1 and not torch.equal(exit_logits, full_logits)
+        ),
+        "full_max_abs_logit": round(full_max_abs_logit, 6),
+        "raw_exit_max_abs_logit": round(exit_max_abs_logit, 6),
+    }
+
+    if softcap is not None:
+        diagnostics["final_logit_softcap"] = float(softcap)
+        diagnostics["full_max_abs_logit_over_softcap"] = round(
+            full_max_abs_logit / softcap, 6
+        )
+        diagnostics["raw_exit_max_abs_logit_over_softcap"] = round(
+            exit_max_abs_logit / softcap, 6
+        )
+
+    return diagnostics
+
+
 def sequence_metrics(reference_ids: List[int], candidate_ids: List[int]) -> Dict[str, Any]:
     n = min(len(reference_ids), len(candidate_ids))
     matches = sum(1 for i in range(n) if reference_ids[i] == candidate_ids[i])
@@ -628,6 +666,7 @@ def manual_forward_step(
     input_ids: torch.Tensor,
     cache: DynamicCache,
     capture_layers: List[int],
+    include_hidden_tensors: bool = False,
 ) -> Dict[str, Any]:
     """
     Explicit one-step forward pass through embeddings, decoder layers, final
@@ -678,19 +717,25 @@ def manual_forward_step(
         )
         hidden_states = extract_hidden_states(layer_output)
         if layer_idx in capture_layers:
-            captured_hidden[layer_idx] = hidden_states[:, -1:, :].detach()
+            # Clone the snapshot to avoid any chance of later in-place layer
+            # operations collapsing intermediate captures onto the final state.
+            captured_hidden[layer_idx] = hidden_states[:, -1:, :].detach().clone()
 
-    full_hidden = hidden_states[:, -1:, :].detach()
+    full_hidden = hidden_states[:, -1:, :].detach().clone()
     full_logits = project_hidden_to_logits(parts, full_hidden)
     exit_logits = {
         layer_idx: project_hidden_to_logits(parts, hidden)
         for layer_idx, hidden in captured_hidden.items()
     }
 
-    return {
+    result = {
         "full_logits": full_logits.detach().cpu(),
         "exit_logits": {k: v.detach().cpu() for k, v in exit_logits.items()},
     }
+    if include_hidden_tensors:
+        result["full_hidden"] = full_hidden.detach().cpu()
+        result["exit_hidden"] = {k: v.detach().cpu() for k, v in captured_hidden.items()}
+    return result
 
 
 def run_shared_context_decode(
@@ -734,6 +779,7 @@ def run_shared_context_decode(
                 input_ids=input_ids,
                 cache=cache,
                 capture_layers=exit_layers,
+                include_hidden_tensors=include_trace,
             )
 
             full_logits = step_out["full_logits"]
@@ -787,6 +833,16 @@ def run_shared_context_decode(
                         ),
                     },
                 }
+                if include_trace:
+                    step_record["layers"][layer_label]["diagnostics"] = build_step_diagnostics(
+                        full_hidden=step_out["full_hidden"],
+                        exit_hidden=step_out["exit_hidden"][layer_idx],
+                        full_logits=full_logits,
+                        exit_logits=layer_logits,
+                        full_top1=full_token,
+                        exit_top1=exit_token,
+                        softcap=getattr(parts.config, "final_logit_softcapping", None),
+                    )
 
             if include_trace:
                 trace_steps.append(step_record)
