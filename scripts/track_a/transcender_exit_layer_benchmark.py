@@ -310,6 +310,28 @@ def quality_sort_key(item: Dict[str, Any]):
     )
 
 
+def parse_config_keys_arg(config_keys_arg: Optional[str]) -> Optional[List[str]]:
+    if config_keys_arg is None:
+        return None
+    keys = [key.strip() for key in config_keys_arg.split(",") if key.strip()]
+    return keys or None
+
+
+def select_policy_specs(
+    policy_specs: List[PolicySpec],
+    requested_keys: Optional[List[str]],
+) -> List[PolicySpec]:
+    if requested_keys is None:
+        return policy_specs
+
+    requested = set(requested_keys)
+    selected = [spec for spec in policy_specs if spec.key in requested]
+    missing = [key for key in requested_keys if key not in {spec.key for spec in selected}]
+    if missing:
+        raise ValueError(f"Unknown --config-keys entries: {missing}")
+    return selected
+
+
 def print_summary(payload: Dict[str, Any], output_path: str):
     print("\nTranscender Exit-Layer Benchmark")
     print(f"JSON output: {output_path}")
@@ -516,6 +538,10 @@ def main():
     parser.add_argument("--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS)
     parser.add_argument("--consistency-tokens", type=int, default=DEFAULT_CONSISTENCY_TOKENS)
     parser.add_argument("--memory-limit-gb", type=float, default=30.0)
+    parser.add_argument(
+        "--config-keys",
+        help="Optional comma-separated config keys to run, e.g. L21_raw_exit,L22_raw_exit",
+    )
     args = parser.parse_args()
 
     if args.model_type == "qwen3_moe":
@@ -528,6 +554,9 @@ def main():
         policy_specs = GPT_OSS_POLICY_SPECS
         control_key = "L22_top1_agree"
         full_depth_layer = 23
+
+    requested_config_keys = parse_config_keys_arg(args.config_keys)
+    policy_specs = select_policy_specs(policy_specs, requested_config_keys)
 
     prompt_defs = []
     for prompt_index, user_prompt in enumerate(PROMPTS, start=1):
@@ -676,22 +705,32 @@ def main():
     full_depth_candidates = [
         item for item in config_results if item["settings"]["hard_exit_layer"] == full_depth_layer
     ]
-    best_full_depth = sorted(full_depth_candidates, key=quality_sort_key, reverse=True)[0]
+    best_full_depth = (
+        sorted(full_depth_candidates, key=quality_sort_key, reverse=True)[0]
+        if full_depth_candidates
+        else None
+    )
     ranking_summary = {
         "best_config": ranked[0]["label"],
-        "best_full_depth_config": best_full_depth["label"],
+        "best_full_depth_config": best_full_depth["label"] if best_full_depth is not None else None,
         "full_depth_beats_control": (
             best_full_depth["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             > control["aggregate_excluding_warmup"]["avg_exact_match_rate"]
+            if best_full_depth is not None
+            else None
         ),
         "full_depth_improves_p3": (
             best_full_depth["p3_summary"]["exact_match_rate"]
             > control["p3_summary"]["exact_match_rate"]
+            if best_full_depth is not None
+            else None
         ),
         "full_depth_gain_justifies_savings_loss": (
             best_full_depth["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             > control["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             and best_full_depth["aggregate_excluding_warmup"]["avg_avg_layers_saved"] >= MEANINGFUL_SAVINGS_THRESHOLD
+            if best_full_depth is not None
+            else None
         ),
         "quality_ranking": [item["label"] for item in ranked],
     }
@@ -705,6 +744,7 @@ def main():
             "consistency_tokens": args.consistency_tokens,
             "reasoning_effort": REASONING_EFFORT,
             "warmup_discard_prompt_id": prompt_defs[WARMUP_PROMPT_INDEX]["prompt_id"],
+            "config_keys_filter": requested_config_keys,
             "notes": "Warmup-corrected aggregate excludes the first prompt result for every config.",
         },
         "prompts": [

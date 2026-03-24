@@ -851,19 +851,22 @@ def build_attention_mask_bundle(
         return None
 
 
+def _dict_mask_fallback(attention_mask_bundle: dict):
+    """Best-effort fallback when a per-layer attention_type key is missing."""
+    if "full_attention" in attention_mask_bundle:
+        return attention_mask_bundle["full_attention"]
+    if "sliding_attention" in attention_mask_bundle:
+        return attention_mask_bundle["sliding_attention"]
+    return None
+
+
 def layer_attention_mask(attention_mask_bundle, decoder_layer):
     if isinstance(attention_mask_bundle, dict):
         attention_type = getattr(decoder_layer, "attention_type", None)
         if attention_type is None:
-            raise RuntimeError(
-                "Per-layer attention-mask mode requires decoder layers with "
-                "`attention_type`."
-            )
+            return _dict_mask_fallback(attention_mask_bundle)
         if attention_type not in attention_mask_bundle:
-            raise RuntimeError(
-                f"Unsupported attention_type {attention_type!r}; expected one of "
-                f"{sorted(attention_mask_bundle.keys())}"
-            )
+            return _dict_mask_fallback(attention_mask_bundle)
         return attention_mask_bundle[attention_type]
     return attention_mask_bundle
 
