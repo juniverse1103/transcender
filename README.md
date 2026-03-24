@@ -1,8 +1,8 @@
 # Transcender
 
-**Research repository for the Transcender paper and follow-on evaluation work.**
+**Research repository for the Transcender paper, experiments, and reporting artifacts.**
 
-This repo now covers more than the original Apple MLX release path. It contains the canonical MLX Track A results, the scoped Track B cascade baseline, the validated Track C dense-model work, and the off-MLX GPU diagnostic flow used for token-row export and offline Stage B analysis.
+This repository contains the code, paper-facing materials, and benchmark artifacts for the Transcender research program. It includes the canonical MLX Track A benchmark path, the Track B cascade baseline, the Track C dense-model evaluation work, and the GPU diagnostic workflow used for token-row export and offline Stage B analysis.
 
 **Transcender: Cross-layer composition control for adaptive transformer inference.**
 
@@ -48,14 +48,14 @@ Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 
 ---
 
-## Current Research Status (GPU Track A / Offline Stage B)
+## GPU Diagnostic Path And Offline Stage B
 
-- `scripts/track_a_gpu/` now includes a trustworthy manual-reference decode path, oracle-style final-aware summaries, token-level relation-row export, and offline proxy evaluation helpers.
+- `scripts/track_a_gpu/` provides a trustworthy manual-reference decode path, oracle-style final-aware summaries, token-level relation-row export, and offline proxy evaluation helpers.
 - Token rows can capture already-exported adjacent-layer features such as entropy, margin, rank, overlap, and logit-delta signals for the previous-vs-penultimate comparison.
-- Current cross-family Stage B evidence on the GPU path includes Gemma 3 `4B`, `12B`, and `27B`, GPT-OSS 20B, Mixtral 8x7B, and Mistral 7B.
-- The current conclusion is negative on the obvious heuristic: naive adjacent-layer agreement is not a viable Stage B acceptance signal across the current cross-family set.
-- Penultimate entropy remains a crude but live offline baseline, and the current framing is correction-vs-shared-failure rather than simple agreement.
-- The current offline conclusion is that `karma` materially improves Stage B decision quality across multiple model families, but this remains a held-out offline evaluation result rather than an online policy claim.
+- The Stage B evaluation set on the GPU path includes Gemma 3 `4B`, `12B`, and `27B`, GPT-OSS 20B, Mixtral 8x7B, and Mistral 7B.
+- A main negative result is that naive adjacent-layer agreement is not a viable Stage B acceptance signal across this cross-family set.
+- Penultimate entropy remains a crude offline baseline, and the framing is correction-vs-shared-failure rather than simple agreement.
+- The offline interpretation is that `karma` materially improves Stage B decision quality across multiple model families, but this remains a held-out offline evaluation result rather than an online policy claim.
 - `karma = probability_of_need_full_depth`, so lower is safer to accept at penultimate.
 - This is not an online serving policy and not a claim of final-free inference.
 - See [`docs/karma_stage_b_summary.md`](docs/karma_stage_b_summary.md) for the compact paper-facing Stage B note and export instructions.
@@ -67,8 +67,8 @@ Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 - `Stage A`: decide whether the earlier candidate was already correct relative to full depth. In the oracle labels this is `earlier_correct`.
 - `Stage B`: condition on Stage A already missing, then decide whether the penultimate layer is sufficient or whether full depth is still needed. In the oracle labels this is `need_penultimate` versus `need_full_depth`.
 - `penultimate_entropy`: a confidence-style baseline on the penultimate logits. Lower entropy usually means a sharper distribution, but sharpness alone does not tell us whether the penultimate layer is still wrong in a way that only full depth will fix.
-- `penultimate_margin`: another confidence-style baseline using the penultimate top-1 vs top-2 gap. It is useful as a reference baseline, not as the current interpretation of the problem.
-- `adjacent_top1_agree` and related adjacent-agreement variants: relation heuristics based on whether the earlier and penultimate layers agree. The current offline result is negative here: agreement alone does not reliably separate `need_penultimate` from `need_full_depth`.
+- `penultimate_margin`: another confidence-style baseline using the penultimate top-1 vs top-2 gap. It is useful as a reference baseline, not as the main interpretation of the problem.
+- `adjacent_top1_agree` and related adjacent-agreement variants: relation heuristics based on whether the earlier and penultimate layers agree. The offline result here is negative: agreement alone does not reliably separate `need_penultimate` from `need_full_depth`.
 - `karma`: a small offline logistic model over penultimate and adjacent-relation features. The intended interpretation is risk, not confidence: `karma = probability_of_need_full_depth`, and lower is safer.
 - Confidence and risk are not the same in this workflow. A token can look locally confident at penultimate and still be in a regime where the final layer is likely to correct it.
 
