@@ -523,6 +523,63 @@ python scripts/track_a_gpu/summarize_karma_results.py \
 \end{itemize}
 }
 
+\section{Extended Exploratory Figures}
+\label{app:extended_figures}
+
+The following figures were generated during earlier exploratory phases of the research (such as the initial GPT-2 proof-of-concept) or as supplementary analytical profiles. They are included here for completeness of the repository record.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/gemma_kl_profile.png}
+    \includegraphics[width=0.48\textwidth]{figures/kl_profile.png}
+    \caption{KL divergence profiles for Gemma and early exploratory models. The family-sensitive profile geometry emphasizes that depth behavior is not universal.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/subspace_analysis.png}
+    \includegraphics[width=0.48\textwidth]{figures/routing_heatmap.png}
+    \caption{Exploratory subspace separation and routing correlation heatmaps.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/pareto_frontier.png}
+    \includegraphics[width=0.48\textwidth]{figures/pareto_frontier_v2.png}
+    \caption{Exploratory Pareto frontiers from the earlier proof-of-concept phase.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/inference_comparison.png}
+    \includegraphics[width=0.48\textwidth]{figures/blend_comparison.png}
+    \caption{Inference and blend comparison charts evaluating composition strategies.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.48\textwidth]{figures/layer_comparison.png}
+    \includegraphics[width=0.48\textwidth]{figures/threshold_sweep.png}
+    \caption{Layer agreement comparisons and dynamic threshold sweep runs.}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{figures/divergence_distribution.png}
+    \caption{Distribution of divergence events marking where the top-1 prediction deviates from the final full-depth token.}
+\end{figure}
+
+\section{Supplementary Snippets}
+\label{app:snippets}
+
+We also preserve two textual snippet modules that guided the structural framing of the matched-scope inter-track comparison and the offline Stage~B analysis.
+
+\subsection{Matched-Scope Note}
+\input{snippets/matched_scope_note.tex}
+
+\subsection{Offline Stage B Karma Note}
+\input{snippets/offline_stage_b_karma_note.tex}
+
 \bibliographystyle{plain}
 \bibliography{references}
 
