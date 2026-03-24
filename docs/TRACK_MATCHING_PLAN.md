@@ -35,13 +35,15 @@ This note records the current Track A / B / C comparison mismatch and the conser
 The shared matched subset is the expository `P2`-`P5` slice. Track~A is sliced from the canonical `N=63` artifacts. Track~B now also has a dedicated matched-scope rerun artifact:
 
 - `artifacts/track_b/transcender_track_b_benchmark_matched_p1_p5_chunk16.json`
+- `artifacts/track_c/transcender_track_c_gemma_results_matched_p1_p5.json`
+- `artifacts/track_c/transcender_track_c_gemma_selective_depth_results_matched_p1_p5.json`
 
 | track | model | condition | scope | exact match | gen TPS | note |
 | --- | --- | --- | --- | ---: | ---: | --- |
 | `A` | `GPT-OSS 20B` | `L22 top1_agree` | `P2-P5` matched subset | `1.000` | `23.764` | canonical Track A artifact sliced to the shared subset |
 | `A` | `Qwen3-30B-A3B` | `L46 top1_agree` | `P2-P5` matched subset | `0.760` | `35.456` | same shared subset, weaker than GPT-OSS |
 | `B` | `Gemma 3 4B-IT -> GPT-OSS 20B` | `naive cascade` | `P2-P5` matched subset | `0.021` | `0.177` | matched-scope rerun using canonical prompt definitions filtered to `P1-P5`; compared in GPT-OSS reference token space |
-| `C` | `Gemma 3 4B-IT` | `top1_agree compute-both L31` | `P2-P5` matched subset | `0.807` | `7.189` | dense compute-both quality recovery |
+| `C` | `Gemma 3 4B-IT` | `top1_agree compute-both L31` | `P2-P5` matched subset | `0.807` | `14.493` | matched-scope Gemma rerun confirms dense compute-both quality recovery |
 | `C` | `Llama 3.1 8B` | `top1_agree compute-both L29` | `P2-P5` matched subset | `1.000` | `17.295` | dense follow-up quality recovery |
 | `C` | `Mistral 7B v0.3` | `top1_agree compute-both L29` | `P2-P5` matched subset | `1.000` | `17.674` | dense follow-up quality recovery |
 
@@ -55,11 +57,12 @@ If a next real run is scheduled, the minimal high-value target is now narrower:
 
 1. Do **not** rerun `Track A` just to recover matched scope. The canonical `N=63` artifacts already support a matched `P2-P5` slice.
 2. Do **not** rerun `Track B` for the current matched-scope table unless the model pair or generation settings change. The dedicated matched-scope artifact now exists.
-3. Do **not** rerun GPU `Stage B / karma` for this paper-structure issue.
-4. If we need fuller same-denominator cross-track tables, the next target is Track~C scope alignment:
+3. Do **not** rerun the matched-scope Gemma Track~C scripts unless the model, prompt subset, or runtime settings change. The dedicated matched-scope artifacts now exist.
+4. Do **not** rerun GPU `Stage B / karma` for this paper-structure issue.
+5. The next optional target, only if the paper needs fuller same-denominator dense evidence, is a canonical-scope Gemma Track~C rerun:
    - `scripts/track_c/transcender_track_c_gemma_benchmark.py`
    - `scripts/track_c/transcender_track_c_gemma_selective_depth.py`
-5. Defer full-scope reruns of the Llama and Mistral dense follow-up until the Gemma full-scope dense rerun is stable and paper-necessary.
+6. Defer full-scope reruns of the Llama and Mistral dense follow-up until the Gemma canonical-scope rerun is stable and paper-necessary.
 
 ## Reproducible Export
 

@@ -27,6 +27,11 @@ For paper alignment, Track C should be runnable under an explicit prompt scope s
 - the matched `P2-P5` subset is explicit
 - a canonical full-suite rerun is possible without changing Track A logic
 
+Completed matched-scope artifacts:
+
+- `artifacts/track_c/transcender_track_c_gemma_results_matched_p1_p5.json`
+- `artifacts/track_c/transcender_track_c_gemma_selective_depth_results_matched_p1_p5.json`
+
 ## Commands
 
 These commands assume an MLX-capable Python environment.

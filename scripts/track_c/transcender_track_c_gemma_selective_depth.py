@@ -58,7 +58,10 @@ from transcender_track_b_cascade import (
     preview_text,
     resolve_prompt_definitions,
 )
-from transcender_track_c_gemma_benchmark import GemmaAdaptiveEngine
+from transcender_track_c_gemma_benchmark import (
+    GemmaAdaptiveEngine,
+    require_mlx_runtime as require_benchmark_mlx_runtime,
+)
 
 SYSTEM_PROMPT = "You are a helpful assistant."
 DEFAULT_MODEL_PATH = str(
@@ -77,6 +80,7 @@ def require_mlx_runtime():
 
         mx = _mx
         mlx_load = _mlx_load
+    require_benchmark_mlx_runtime()
     return mx, mlx_load
 
 
@@ -574,8 +578,16 @@ def print_results(payload: Dict[str, Any]) -> None:
         )
 
     baseline = next(
-        mode["aggregate_excluding_warmup"] for mode in payload["modes"] if mode["key"] == "full_depth_L33"
+        (
+            mode["aggregate_excluding_warmup"]
+            for mode in payload["modes"]
+            if mode["key"] == "full_depth_L33" and mode.get("status") == "ok"
+        ),
+        None,
     )
+    if baseline is None:
+        print("\n  Baseline full-depth aggregate unavailable.")
+        return
     print(f"\n  Baseline full-depth TPS: {baseline['avg_generation_tps']:.2f}")
 
     for mode in payload["modes"]:

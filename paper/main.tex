@@ -204,12 +204,12 @@ Track~B is not a claim about cascade systems in general. It is a scoped negative
 \toprule
 Mode & Gen TPS & Exact Match & Layers Saved & Agreement Rate \\
 \midrule
-Full depth L33 & 15.01 & 1.000 & 0\% & --- \\
-Fixed exit L16 & 22.81 & 0.010 & 50\% & --- \\
-Fixed exit L20 & 20.81 & 0.026 & 38\% & --- \\
-Fixed exit L31 & 14.95 & 0.198 & 6\% & --- \\
-\texttt{top1\_agree} L31 & 7.19 & 0.807 & 0\% & 81.9\% \\
-Naive blend L31 & 10.01 & 0.688 & 0\% & 100\% \\
+Full depth L33 & 20.46 & 1.000 & 0\% & --- \\
+Fixed exit L16 & 29.16 & 0.010 & 50\% & --- \\
+Fixed exit L20 & 25.74 & 0.026 & 38\% & --- \\
+Fixed exit L31 & 18.52 & 0.198 & 6\% & --- \\
+\texttt{top1\_agree} L31 & 14.49 & 0.807 & 0\% & 81.9\% \\
+Naive blend L31 & 14.10 & 0.688 & 0\% & 100\% \\
 \bottomrule
 \end{tabular}%
 }
@@ -229,17 +229,17 @@ Track~C establishes that fixed exit is catastrophic on the tested dense model. E
 \toprule
 Mode & Gen TPS & Exact Match & Accept & Skip & Avg.\ Layers Saved \\
 \midrule
-Full depth L33 & 20.05 & 1.000 & --- & 0\% & 0\% \\
-Fixed exit L31 & 19.10 & 0.198 & --- & --- & 5.9\% \\
-\texttt{top1\_agree} compute-both L31 & 16.31 & 0.807 & 81.9\% & 0\% & 0\% \\
-Selective margin L31 & 18.26 & 0.229 & 78.2\% & 3.7\% & 0.2\% \\
-Selective entropy L31 & 18.20 & 0.208 & 93.6\% & 34.0\% & 2.0\% \\
+Full depth L33 & 19.19 & 1.000 & --- & 0\% & 0\% \\
+Fixed exit L31 & 18.25 & 0.198 & --- & --- & 5.9\% \\
+\texttt{top1\_agree} compute-both L31 & 14.78 & 0.807 & 81.9\% & 0\% & 0\% \\
+Selective margin L31 & 16.54 & 0.229 & 78.2\% & 3.7\% & 0.2\% \\
+Selective entropy L31 & 16.84 & 0.208 & 93.6\% & 34.0\% & 2.0\% \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
-The selective-depth extension asks whether the late-layer agreement signal at L31 can be converted into real layer skipping. The answer is affirmative operationally but negative practically. As shown in \cref{tab:trackc_selective}, the entropy rule achieves a 34.0\% realized skip rate over continuation-eligible decode steps. However, with only two of thirty-four layers available to skip, average savings remain at 2.0\%. Neither selective mode exceeds the full-depth baseline of 20.05 TPS, and both remain near fixed-exit quality.
+The selective-depth extension asks whether the late-layer agreement signal at L31 can be converted into real layer skipping. The answer is affirmative operationally but negative practically. As shown in \cref{tab:trackc_selective}, the entropy rule achieves a 34.0\% realized skip rate over continuation-eligible decode steps. However, with only two of thirty-four layers available to skip, average savings remain at 2.0\%. Neither selective mode exceeds the matched full-depth baseline of 19.19 TPS, and both remain near fixed-exit quality.
 
 This distinction is important. Compute-both \texttt{top1\_agree} is a quality-control result with no physical skip. Real selective depth is a speed-validation result. On Gemma~3 4B-IT at L31, replay and control overhead erased the available compute savings on this runtime.
 

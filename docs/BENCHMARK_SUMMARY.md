@@ -13,7 +13,7 @@ This summary belongs to the broader `transcender` research repo, which includes 
 | **A** | GPT-OSS 20B (MoE, 24L) | L22 `top1_agree` | canonical `N=63` | **0.870** | 0.490 | 18.6 | Strong positive penultimate-layer frontier on one tested sparse MoE family |
 | **A** | Qwen3-30B-A3B (MoE, 48L) | L46 `top1_agree` | canonical `N=63` | **0.837** | 0.760 | 32.1 | Same frontier structure reproduces on a second tested sparse MoE family, but at weaker quality |
 | **B** | Gemma 3 4B-IT + GPT-OSS 20B | Naive cascade | matched `P2-P5` scored | 0.021 | — | 0.18 | Scoped negative baseline for this model pair and local MLX runtime |
-| **C** | Gemma 3 4B-IT, Llama 3.1 8B, Mistral 7B | Dense compute-both + selective-depth follow-up | legacy expository `N=4` scored | Mixed | Mixed | Mixed | Compute-both quality recovery is real; no practical dense selective-depth frontier was established on this runtime |
+| **C** | Gemma 3 4B-IT, Llama 3.1 8B, Mistral 7B | Dense compute-both + selective-depth follow-up | Gemma matched `P2-P5`; dense follow-up legacy `N=4` | Mixed | Mixed | Mixed | Compute-both quality recovery is real; no practical dense selective-depth frontier was established on this runtime |
 
 How to read this summary:
 
@@ -23,7 +23,8 @@ How to read this summary:
 - The GPU Track A / Stage B karma work is additive offline interpretation work, not a replacement for the Track A/B/C structure.
 - The Track A rows above use the canonical `N=63` artifacts.
 - Track B now also has a dedicated matched-scope rerun on `P1`-`P5` with `P1` treated as warmup.
-- Track C still remains on the older five-prompt expository subset, so direct cross-track comparison should use the matched-scope helper in `scripts/export_track_comparison_table.py` or the note in `docs/TRACK_MATCHING_PLAN.md`.
+- Gemma Track C now also has dedicated matched-scope reruns on `P1`-`P5` with `P1` treated as warmup.
+- The Llama and Mistral dense follow-up artifacts still remain on the older five-prompt expository subset, so direct cross-track comparison should use the matched-scope helper in `scripts/export_track_comparison_table.py` or the note in `docs/TRACK_MATCHING_PLAN.md`.
 
 ---
 
@@ -76,16 +77,16 @@ How to read this summary:
 
 | Mode | Gen TPS | Exact Match | Layers Saved | Agreement Rate |
 |------|---------|-------------|--------------|----------------|
-| Full depth (L33) | 15.01 | 1.000 | 0% | — |
-| Fixed exit (L16) | 22.81 | 0.010 | 50% | — |
-| Fixed exit (L20) | 20.81 | 0.026 | 38% | — |
-| Fixed exit (L31) | 14.95 | 0.198 | 6% | — |
-| `top1_agree` compute-both (L31) | 7.19 | **0.807** | 0% | 81.9% |
-| Naive blend (L31) | 10.01 | 0.688 | 0% | 100% |
+| Full depth (L33) | 20.46 | 1.000 | 0% | — |
+| Fixed exit (L16) | 29.16 | 0.010 | 50% | — |
+| Fixed exit (L20) | 25.74 | 0.026 | 38% | — |
+| Fixed exit (L31) | 18.52 | 0.198 | 6% | — |
+| `top1_agree` compute-both (L31) | 14.49 | **0.807** | 0% | 81.9% |
+| Naive blend (L31) | 14.10 | 0.688 | 0% | 100% |
 
-**Interpretation:** Dense Gemma validates the composition thesis in compute-both mode, but not a practical selective-depth frontier. Fixed exit is catastrophic; agreement-aware compute-both composition recovers quality.
+**Interpretation:** The matched-scope Gemma rerun preserves the same conclusion with cleaner denominator alignment. Dense Gemma validates the composition thesis in compute-both mode, but not a practical selective-depth frontier. Fixed exit is catastrophic; agreement-aware compute-both composition recovers quality.
 
-**Selective-depth validation:** At L31, `selective_depth_entropy_L31` reached 18.20 TPS and 0.208 exact match with 2.0% average layers saved. At L20, `selective_depth_entropy_L20` reached 13.26 TPS and 0.073 exact match with 15.7% average layers saved versus a matched full-depth baseline of 15.16 TPS and 1.000 exact match. Larger skip budget did not recover a practical frontier.
+**Selective-depth validation:** At matched scope, `selective_depth_entropy_L31` reached 16.84 TPS and 0.208 exact match with 2.0% average layers saved against a matched full-depth baseline of 19.19 TPS and 1.000 exact match. At L20 on the current legacy follow-up, `selective_depth_entropy_L20` reached 13.26 TPS and 0.073 exact match with 15.7% average layers saved versus a matched full-depth baseline of 15.16 TPS and 1.000 exact match. Larger skip budget did not recover a practical frontier.
 
 ### Dense-Family Follow-Up
 
