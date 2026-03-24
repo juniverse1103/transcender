@@ -43,6 +43,28 @@ This document maps `transcender-mlx`, the Apple MLX reference implementation and
 | `transcender_server.py` | FastAPI inference server |
 | `transcender_20b_scaffold.py` | GPT-OSS 20B model scaffold and configuration |
 
+### scripts/track_a_gpu/ — Diagnostic GPU Validation
+
+| File | Purpose |
+|------|---------|
+| `transcender_gpu_reproduction.py` | Manual-reference GPU validation path for Track A under shared full-depth context; reports raw exit metrics separately from composed `top1_agree` metrics |
+| `analyze_debug_trace.py` | Summarizes a single-prompt trace JSON to confirm raw divergence and sane fallback behavior |
+| `summarize_benchmark.py` | Summarizes aggregate GPU benchmark JSON by layer (`raw_exit_avg_exact_match`, `composed_avg_exact_match`, `avg_top1_agreement_rate`) |
+| `compare_benchmarks.py` | Compares multiple benchmark JSON files across models using the same raw/composed aggregate metrics |
+| `RUNBOOK.md` | Exact cloud-GPU execution and validation workflow |
+
+This GPU path spans both architecture classes:
+
+- sparse MoE: Qwen3/Qwen2-MoE, GPT-OSS, Mixtral
+- dense: Mistral, Llama, Gemma, Gemma2, and Gemma 3 text checkpoints such as `google/gemma-3-4b-it`, `google/gemma-3-12b-it`, and `google/gemma-3-27b-it`
+
+Validation status is narrower than code-path support:
+
+- empirically validated baseline on this GPU path: Qwen3-30B-A3B
+- code-path supported, pending real runs: GPT-OSS, Mixtral, Mistral, Llama, older Gemma/Gemma2 text checkpoints, and Gemma 3 text checkpoints by size
+
+Gemma 3 should be read as a dense family with checkpoint-specific size variants such as `google/gemma-3-4b-it`, `google/gemma-3-12b-it`, and `google/gemma-3-27b-it`, not as one undifferentiated model. Multimodal Gemma 3 checkpoints are intentionally out of scope for this manual-reference path.
+
 ### scripts/track_b/ — Negative Baseline
 
 | File | Purpose |
@@ -102,6 +124,14 @@ This document maps `transcender-mlx`, the Apple MLX reference implementation and
 | `hard_exit_ablation.json` | Historical / supplementary | GPT-OSS hard-exit ablation (pre-fix) |
 | `hard_exit_ablation_post_fix.json` | Historical / supplementary | GPT-OSS hard-exit ablation (post-fix) |
 | `postfix_dynamic_benchmark.json` | Historical / supplementary | Earlier GPT-OSS dynamic benchmark |
+
+### artifacts/track_a_gpu/ — Local Diagnostic Outputs
+
+These files are generated locally by the GPU validation flow and are not canonical paper-supporting artifacts.
+
+| File Pattern | Purpose |
+|--------------|---------|
+| `*.json` | Single-prompt traces and multi-prompt shared-context benchmark summaries from `scripts/track_a_gpu/transcender_gpu_reproduction.py` |
 
 ### artifacts/track_b/ — Negative Baseline
 

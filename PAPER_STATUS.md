@@ -1,6 +1,6 @@
 # Paper Status
 
-Status of the Transcender paper package and the `transcender-mlx` MLX release repo as of 2026-03-23.
+Status of the Transcender paper package and the `transcender-mlx` MLX release repo as of 2026-03-24.
 
 ---
 
@@ -11,6 +11,7 @@ Status of the Transcender paper package and the `transcender-mlx` MLX release re
 - **Track B:** The naive Gemma-to-GPT-OSS cascade remains a scoped negative baseline for the tested configuration.
 - **Track C:** The dense follow-up is complete. Compute-both quality recovery is established, but no practical real selective-depth frontier was found on the tested dense families in this runtime.
 - **Repo docs:** Release-facing docs in `transcender-mlx` align to the narrow public claim: a viable penultimate-layer selective-exit frontier appears on both tested sparse MoE families; operating-point quality is model-dependent; dense models did not show a practical real selective-depth frontier on this runtime.
+- **GPU validation tooling:** `scripts/track_a_gpu/` provides a manual-reference off-MLX diagnostic path for Track A. It is useful for external-validity checks, but it is not part of the paper's canonical MLX evidence base.
 - **Markdown whitepapers:** Older markdown narratives are retained, but they are labeled as superseded or historical rather than presented as current evidence.
 - **Bibliography / citation / license:** `paper/references.bib`, `CITATION.cff`, and the MIT license are coherent for public release. The author metadata remains Beomjune Son.
 
@@ -25,8 +26,8 @@ Status of the Transcender paper package and the `transcender-mlx` MLX release re
 
 ### 2. Figures
 
-- `paper/figures/` contains PNG assets, but `main.tex` currently relies on tables rather than `\includegraphics`.
-- **Action:** Decide whether to include figures in the arXiv submission. If yes, add them explicitly to `main.tex`; if no, the figures directory can be omitted from the upload bundle.
+- `paper/main.tex` already includes `paper/figures/quality_cliff.png` and `paper/figures/category_breakdown.png`.
+- **Action:** Include those referenced PNGs in the arXiv upload bundle. Extra local figures not referenced by `main.tex` can stay out of the upload.
 
 ### 3. Affiliation (optional)
 
@@ -50,7 +51,7 @@ Status of the Transcender paper package and the `transcender-mlx` MLX release re
 
 1. Verify the final `README.md` and `docs/` snapshots are consistent with `paper/main.tex`
 2. Compile to generate `paper/references.bbl`
-3. Decide on figure inclusion
+3. Bundle the figures explicitly referenced by `paper/main.tex`
 4. Create the arXiv tarball with `main.tex`, `references.bbl`, and any explicitly included figures
 5. Upload to arXiv as the chosen category
 6. Add the public `transcender-mlx` GitHub repository URL to the arXiv comments field after release

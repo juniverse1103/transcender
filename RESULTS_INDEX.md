@@ -26,11 +26,12 @@ These files directly support tables or claims in `paper/main.tex`.
 
 ## Exploratory / Supplementary Artifacts
 
-These files informed development or provide retained reference data, but they are not the canonical paper-supporting Track A artifacts.
+These files informed development or provide retained reference data, but they are not the canonical paper-supporting Track A artifacts. This includes locally generated GPU validation outputs from the manual-reference off-MLX diagnostic path.
 
 | Artifact | What It Measures |
 |----------|------------------|
 | `artifacts/track_a/transcender_top1_agree_benchmark.json` | Earlier GPT-OSS blend-strategy comparison retained for reference |
+| `artifacts/track_a_gpu/*.json` | Local GPU validation traces and shared-context benchmark summaries. These are diagnostic off-MLX outputs, not direct replacements for the canonical MLX Track A artifacts. Run a single-prompt debug trace first; do not interpret aggregate GPU output before verifying raw-exit divergence and sane composed fallback behavior. |
 | `artifacts/dense_followup/llama31_8b_exit_sweep.json` | Llama 3.1 8B exit-layer agreement sweep used for dense frontier discovery |
 | `artifacts/dense_followup/llama31_8b_exit_sweep_summary.csv` | CSV summary for the Llama 3.1 8B exit-layer agreement sweep |
 | `artifacts/dense_followup/transcender_track_c_gemma_advanced_probe_L20_results.json` | Gemma L20 advanced probe with replay repair; quality improved but realized skipping collapsed |

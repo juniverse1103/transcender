@@ -122,9 +122,21 @@ DEFAULT_MAX_NEW_TOKENS = 48
 DEFAULT_BLEND_ALPHA = 0.10
 WARMUP_INDEX = 0  # P1
 
-MLX_REFERENCE = {
-    "L46": {"exact_match": 0.837, "perfect": 36, "total": 63},
-    "L45": {"exact_match": 0.463, "perfect": 6, "total": 63},
+MODEL_REFERENCE_BY_SUBSTRING = {
+    "qwen3-30b-a3b": {
+        "reference_type": "mlx_track_a_supplementary_n63",
+        "layers": {
+            "L46": {"exact_match": 0.837, "perfect": 36, "total": 63},
+            "L45": {"exact_match": 0.463, "perfect": 6, "total": 63},
+        },
+    },
+    "gpt-oss-20b": {
+        "reference_type": "mlx_track_a_supplementary_n63",
+        "layers": {
+            "L22": {"exact_match": 0.870, "perfect": 47, "total": 63},
+            "L21": {"exact_match": 0.703, "perfect": 27, "total": 63},
+        },
+    },
 }
 
 
@@ -139,6 +151,10 @@ class ModelParts:
     config: Any
     device: torch.device
     num_layers: int
+    family: str
+    architecture: str
+    input_hidden_state_scaling: str
+    attention_mask_style: str
 
 
 def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
@@ -171,7 +187,25 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
     else:
         load_kwargs["device_map"] = device
 
-    model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+    try:
+        model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+    except ValueError as exc:
+        lowered = model_name.lower()
+        if "gemma-3" in lowered or "gemma3" in lowered:
+            raise RuntimeError(
+                "Gemma 3 support in this script is limited to text causal-LM "
+                "checkpoints. Multimodal Gemma 3 conditional-generation "
+                "checkpoints are not supported by the manual-reference path."
+            ) from exc
+        raise
+
+    if hasattr(model, "language_model") and not hasattr(model, "model"):
+        raise RuntimeError(
+            "Loaded model appears to be a multimodal Gemma 3 conditional-"
+            "generation checkpoint. The manual-reference path only supports "
+            "text causal-LM checkpoints such as google/gemma-3-4b-it."
+        )
+
     model.eval()
     return model, tokenizer
 
@@ -246,12 +280,65 @@ def module_device(module: torch.nn.Module) -> torch.device:
     raise ValueError(f"Cannot infer device for module {type(module).__name__}")
 
 
+def infer_model_family(backbone: torch.nn.Module) -> str:
+    module_name = type(backbone).__module__.lower()
+    class_name = type(backbone).__name__.lower()
+
+    families = {
+        "gemma3": ("gemma3text", "gemma3"),
+        "qwen2_moe": ("qwen2_moe", "qwen2moe"),
+        "mixtral": ("mixtral",),
+        "llama": ("llama",),
+        "mistral": ("mistral",),
+        "gemma2": ("gemma2",),
+        "gemma": ("gemma",),
+        "gpt_oss": ("gpt_oss", "gptoss"),
+    }
+
+    for family, markers in families.items():
+        if any(marker in module_name or marker in class_name for marker in markers):
+            return family
+
+    raise RuntimeError(
+        "Unsupported backbone for the manual-reference path: "
+        f"{type(backbone).__name__} from {type(backbone).__module__}. "
+        "Supported families are qwen2_moe/qwen3_moe, gpt_oss, mixtral, "
+        "llama, mistral, gemma, gemma2, and gemma3 text."
+    )
+
+
+def infer_input_hidden_state_scaling(family: str) -> str:
+    if family in {"gemma", "gemma2"}:
+        return "sqrt_hidden_size"
+    return "none"
+
+
+def infer_attention_mask_style(family: str) -> str:
+    if family in {"gpt_oss", "gemma2", "gemma3"}:
+        return "per_layer_attention_type"
+    return "single_mask"
+
+
 def get_model_parts(model) -> ModelParts:
     backbone = getattr(model, "model", None)
     if backbone is None:
+        if hasattr(model, "language_model"):
+            raise RuntimeError(
+                "Loaded model appears to be a multimodal Gemma 3 conditional-"
+                "generation checkpoint. The manual-reference path only "
+                "supports text causal-LM checkpoints such as "
+                "google/gemma-3-4b-it."
+            )
         raise AttributeError(
             f"{type(model).__name__} has no `.model` backbone. "
             "Manual adaptation is required for this architecture."
+        )
+
+    if hasattr(backbone, "language_model") and not hasattr(backbone, "embed_tokens"):
+        raise RuntimeError(
+            "Loaded backbone appears to be a multimodal Gemma 3 wrapper. "
+            "The manual-reference path only supports text causal-LM "
+            "checkpoints such as google/gemma-3-4b-it."
         )
 
     required = ["embed_tokens", "layers", "norm", "rotary_emb"]
@@ -279,6 +366,8 @@ def get_model_parts(model) -> ModelParts:
             f"Observed devices: {sorted(str(d) for d in devices)}"
         )
 
+    family = infer_model_family(backbone)
+
     return ModelParts(
         backbone=backbone,
         embed_tokens=backbone.embed_tokens,
@@ -289,7 +378,37 @@ def get_model_parts(model) -> ModelParts:
         config=backbone.config,
         device=devices.pop(),
         num_layers=len(backbone.layers),
+        family=family,
+        architecture=type(backbone).__name__,
+        input_hidden_state_scaling=infer_input_hidden_state_scaling(family),
+        attention_mask_style=infer_attention_mask_style(family),
     )
+
+
+def resolve_reference_for_model(model_name: str) -> Optional[Dict[str, Any]]:
+    lowered = model_name.lower()
+    for substring, reference in MODEL_REFERENCE_BY_SUBSTRING.items():
+        if substring in lowered:
+            return reference
+    return None
+
+
+def default_exit_layers(num_layers: int) -> List[int]:
+    if num_layers < 3:
+        raise ValueError(
+            "Manual reference benchmark needs at least 3 layers to compare "
+            "penultimate-1, penultimate, and full depth."
+        )
+    return [num_layers - 3, num_layers - 2]
+
+
+def normalize_exit_layers(
+    exit_layers: Optional[List[int]],
+    num_layers: int,
+) -> List[int]:
+    resolved = default_exit_layers(num_layers) if not exit_layers else sorted(set(exit_layers))
+    validate_exit_layers(resolved, num_layers)
+    return resolved
 
 
 def validate_exit_layers(exit_layers: List[int], num_layers: int) -> None:
@@ -309,7 +428,153 @@ def project_hidden_to_logits(parts: ModelParts, hidden_state: torch.Tensor) -> t
     hidden_state = hidden_state.to(parts.device)
     normed = parts.final_norm(hidden_state)
     logits = parts.lm_head(normed)
+    softcap = getattr(parts.config, "final_logit_softcapping", None)
+    if softcap is not None:
+        logits = logits / softcap
+        logits = torch.tanh(logits)
+        logits = logits * softcap
     return logits[:, -1, :]
+
+
+def _bidirectional_window_overlay(sliding_window: int):
+    """Match the Gemma 3 bidirectional sliding-window mask behavior."""
+
+    def inner_mask(batch_idx: int, head_idx: int, q_idx: int, kv_idx: int) -> bool:
+        return abs(q_idx - kv_idx) < sliding_window
+
+    return inner_mask
+
+
+def build_position_embeddings(
+    parts: ModelParts,
+    hidden_states: torch.Tensor,
+    position_ids: torch.Tensor,
+):
+    if parts.family == "gemma3":
+        layer_types = getattr(parts.config, "layer_types", None)
+        if not layer_types:
+            raise RuntimeError(
+                "Gemma 3 manual path requires `config.layer_types` to build "
+                "layer-specific rotary embeddings."
+            )
+        position_embeddings = {}
+        for layer_type in layer_types:
+            if layer_type not in position_embeddings:
+                position_embeddings[layer_type] = parts.rotary_emb(
+                    hidden_states,
+                    position_ids,
+                    layer_type,
+                )
+        return position_embeddings
+    try:
+        return parts.rotary_emb(hidden_states, position_ids=position_ids)
+    except TypeError:
+        return parts.rotary_emb(hidden_states, position_ids)
+
+
+def apply_input_hidden_state_scaling(
+    parts: ModelParts,
+    hidden_states: torch.Tensor,
+) -> torch.Tensor:
+    if parts.input_hidden_state_scaling == "sqrt_hidden_size":
+        normalizer = torch.tensor(
+            parts.config.hidden_size**0.5,
+            dtype=hidden_states.dtype,
+            device=hidden_states.device,
+        )
+        return hidden_states * normalizer
+    return hidden_states
+
+
+def build_attention_mask_bundle(
+    parts: ModelParts,
+    inputs_embeds: torch.Tensor,
+    cache_position: torch.Tensor,
+    cache: DynamicCache,
+    position_ids: torch.Tensor,
+):
+    mask_kwargs = {
+        "config": parts.config,
+        "inputs_embeds": inputs_embeds,
+        "attention_mask": None,
+        "cache_position": cache_position,
+        "past_key_values": cache,
+        "position_ids": position_ids,
+    }
+    if parts.attention_mask_style == "per_layer_attention_type":
+        sliding_mask_kwargs = dict(mask_kwargs)
+        if (
+            parts.family == "gemma3"
+            and getattr(parts.config, "use_bidirectional_attention", False)
+        ):
+            mask_kwargs["or_mask_function"] = (
+                lambda *args: torch.tensor(True, dtype=torch.bool)
+            )
+            sliding_window = getattr(parts.config, "sliding_window", None)
+            if sliding_window is None:
+                raise RuntimeError(
+                    "Gemma 3 bidirectional attention requires `config.sliding_window`."
+                )
+            sliding_mask_kwargs["or_mask_function"] = _bidirectional_window_overlay(
+                sliding_window
+            )
+        return {
+            "full_attention": create_causal_mask(**mask_kwargs),
+            "sliding_attention": create_sliding_window_causal_mask(**sliding_mask_kwargs),
+        }
+    sliding_window = getattr(parts.config, "sliding_window", None)
+    mask_fn = (
+        create_causal_mask
+        if sliding_window is None
+        else create_sliding_window_causal_mask
+    )
+    return mask_fn(**mask_kwargs)
+
+
+def layer_attention_mask(attention_mask_bundle, decoder_layer):
+    if isinstance(attention_mask_bundle, dict):
+        attention_type = getattr(decoder_layer, "attention_type", None)
+        if attention_type is None:
+            raise RuntimeError(
+                "Per-layer attention-mask mode requires decoder layers with "
+                "`attention_type`."
+            )
+        if attention_type not in attention_mask_bundle:
+            raise RuntimeError(
+                f"Unsupported attention_type {attention_type!r}; expected one of "
+                f"{sorted(attention_mask_bundle.keys())}"
+            )
+        return attention_mask_bundle[attention_type]
+    return attention_mask_bundle
+
+
+def layer_position_embeddings(parts: ModelParts, position_embeddings, decoder_layer):
+    if parts.family == "gemma3":
+        attention_type = getattr(decoder_layer, "attention_type", None)
+        if attention_type is None:
+            raise RuntimeError(
+                "Gemma 3 manual path requires decoder layers with `attention_type`."
+            )
+        if attention_type not in position_embeddings:
+            raise RuntimeError(
+                f"Missing position embeddings for Gemma 3 attention_type "
+                f"{attention_type!r}; expected one of {sorted(position_embeddings.keys())}"
+            )
+        return position_embeddings[attention_type]
+    return position_embeddings
+
+
+def extract_hidden_states(layer_output: Any) -> torch.Tensor:
+    if torch.is_tensor(layer_output):
+        return layer_output
+    if isinstance(layer_output, (tuple, list)) and layer_output:
+        first = layer_output[0]
+        if torch.is_tensor(first):
+            return first
+    raise TypeError(
+        "Decoder layer output is not a tensor or `(hidden_states, ...)` tuple: "
+        f"{type(layer_output).__name__}"
+    )
 
 
 def compose_top1_agree_logits(
@@ -372,34 +637,37 @@ def manual_forward_step(
     )
     position_ids = cache_position.unsqueeze(0)
 
-    mask_fn = (
-        create_causal_mask
-        if parts.config.sliding_window is None
-        else create_sliding_window_causal_mask
-    )
-    causal_mask = mask_fn(
-        config=parts.config,
+    attention_mask_bundle = build_attention_mask_bundle(
+        parts=parts,
         inputs_embeds=inputs_embeds,
-        attention_mask=None,
         cache_position=cache_position,
-        past_key_values=cache,
+        cache=cache,
         position_ids=position_ids,
     )
-    position_embeddings = parts.rotary_emb(inputs_embeds, position_ids=position_ids)
+    position_embeddings = build_position_embeddings(
+        parts=parts,
+        hidden_states=inputs_embeds,
+        position_ids=position_ids,
+    )
 
-    hidden_states = inputs_embeds
+    hidden_states = apply_input_hidden_state_scaling(parts, inputs_embeds)
     captured_hidden: Dict[int, torch.Tensor] = {}
 
     for layer_idx, decoder_layer in enumerate(parts.layers[: parts.num_layers]):
-        hidden_states = decoder_layer(
+        layer_output = decoder_layer(
             hidden_states,
-            attention_mask=causal_mask,
+            attention_mask=layer_attention_mask(attention_mask_bundle, decoder_layer),
             position_ids=position_ids,
             past_key_values=cache,
             use_cache=True,
             cache_position=cache_position,
-            position_embeddings=position_embeddings,
+            position_embeddings=layer_position_embeddings(
+                parts,
+                position_embeddings,
+                decoder_layer,
+            ),
         )
+        hidden_states = extract_hidden_states(layer_output)
         if layer_idx in capture_layers:
             captured_hidden[layer_idx] = hidden_states[:, -1:, :].detach()
 
@@ -431,7 +699,8 @@ def run_shared_context_decode(
 
     The full-depth token is used to advance the cache at every step. This makes
     the trace diagnostically trustworthy for comparing candidate logits from
-    L45/L46 against the full-depth path without branching the generation tree.
+    the requested exit layers against the full-depth path without branching
+    the generation tree.
     """
     prompt_ids = render_prompt(
         tokenizer=tokenizer,
@@ -543,7 +812,7 @@ def run_shared_context_decode(
         "prompt_text": prompt_text,
         "shared_context_mode": (
             "full-depth token chosen at each step is used to advance decode state; "
-            "L45/L46 tokens are candidate comparisons under the same context."
+            "exit-layer tokens are candidate comparisons under the same context."
         ),
         "max_new_tokens": max_new_tokens,
         "blend_alpha": blend_alpha,
@@ -618,7 +887,7 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
 def run_benchmark(
     model,
     tokenizer,
-    exit_layers: List[int],
+    exit_layers: Optional[List[int]],
     output_path: str,
     model_name: str,
     prompt_offset: int = 0,
@@ -627,15 +896,20 @@ def run_benchmark(
     blend_alpha: float = DEFAULT_BLEND_ALPHA,
 ):
     parts = get_model_parts(model)
-    validate_exit_layers(exit_layers, parts.num_layers)
+    exit_layers = normalize_exit_layers(exit_layers, parts.num_layers)
     selected_prompts = select_prompts(prompt_offset=prompt_offset, prompt_limit=prompt_limit)
+    model_reference = resolve_reference_for_model(model_name)
 
     results: Dict[str, Any] = {
         "experiment": "transcender_gpu_reproduction_manual_reference",
         "model": model_name,
+        "model_family": parts.family,
+        "model_architecture": parts.architecture,
         "num_layers": parts.num_layers,
         "exit_layers_tested": exit_layers,
         "runtime": "huggingface_transformers_gpu_manual_forward",
+        "input_hidden_state_scaling": parts.input_hidden_state_scaling,
+        "attention_mask_style": parts.attention_mask_style,
         "max_new_tokens": max_new_tokens,
         "blend_alpha": blend_alpha,
         "warmup_prompt": "P1",
@@ -647,8 +921,14 @@ def run_benchmark(
             "tokens and composed tokens are reported separately."
         ),
         "prompt_results": [],
-        "mlx_reference": MLX_REFERENCE,
     }
+    if model_reference is not None:
+        results["model_reference"] = model_reference
+
+    print(
+        f"Manual-reference path: family={parts.family} "
+        f"architecture={parts.architecture} exit_layers={exit_layers}"
+    )
 
     for prompt_index, prompt_text in selected_prompts:
         prompt_id = f"P{prompt_index + 1}"
@@ -707,13 +987,14 @@ def run_debug_trace(
     model,
     tokenizer,
     prompt_id: str,
-    exit_layers: List[int],
+    exit_layers: Optional[List[int]],
     output_path: str,
     max_new_tokens: int,
     blend_alpha: float,
 ):
     parts = get_model_parts(model)
-    validate_exit_layers(exit_layers, parts.num_layers)
+    exit_layers = normalize_exit_layers(exit_layers, parts.num_layers)
+    model_name = getattr(model.config, "_name_or_path", type(model).__name__)
 
     prompt_index = resolve_prompt_index(prompt_id)
     prompt_text = PROMPTS[prompt_index]
@@ -728,13 +1009,25 @@ def run_debug_trace(
         include_trace=True,
     )
     trace_result["debug_mode"] = True
-    trace_result["mlx_reference"] = MLX_REFERENCE
+    trace_result["model"] = model_name
+    trace_result["model_family"] = parts.family
+    trace_result["model_architecture"] = parts.architecture
+    trace_result["input_hidden_state_scaling"] = parts.input_hidden_state_scaling
+    trace_result["attention_mask_style"] = parts.attention_mask_style
+
+    model_reference = resolve_reference_for_model(model_name)
+    if model_reference is not None:
+        trace_result["model_reference"] = model_reference
 
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(trace_result, indent=2))
 
     print(f"\nDebug trace written to {out_path}")
+    print(
+        f"Manual-reference path: family={parts.family} "
+        f"architecture={parts.architecture} exit_layers={exit_layers}"
+    )
     for layer_idx in exit_layers:
         layer_label = f"L{layer_idx}"
         summary = trace_result["layer_summaries"][layer_label]
@@ -767,8 +1060,11 @@ def main():
         "--exit-layers",
         type=int,
         nargs="+",
-        default=[45, 46],
-        help="Exit layers to test",
+        default=None,
+        help=(
+            "Exit layers to test. Defaults to the model's penultimate-1 and "
+            "penultimate layers."
+        ),
     )
     parser.add_argument(
         "--output",

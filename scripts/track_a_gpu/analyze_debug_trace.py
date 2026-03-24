@@ -4,7 +4,7 @@ Inspect a single-prompt debug trace from transcender_gpu_reproduction.py.
 This helper answers the narrow diagnostic questions needed before trusting a
 GPU frontier run:
 
-- Do raw L45/L46 candidate tokens ever differ from full depth?
+- Do raw candidate tokens from the tested exit layers ever differ from full depth?
 - When raw candidates disagree, does composed top1_agree just fall back to the
   full-depth token?
 - Is the trace structurally sane, inconclusive, or suspicious?
@@ -23,6 +23,12 @@ def load_trace(path: Path) -> Dict[str, Any]:
     if "trace" not in data or not isinstance(data["trace"], list) or not data["trace"]:
         raise ValueError(f"{path} does not contain a non-empty `trace` list.")
     return data
+
+
+def infer_layer_labels(data: Dict[str, Any]) -> List[str]:
+    first_step = data["trace"][0]
+    labels = list(first_step.get("layers", {}).keys())
+    return sorted(labels, key=lambda label: int(label[1:]))
 
 
 def layer_report(trace_steps: List[Dict[str, Any]], layer_label: str) -> Dict[str, Any]:
@@ -90,8 +96,8 @@ def main() -> None:
     parser.add_argument(
         "--layers",
         nargs="+",
-        default=["L45", "L46"],
-        help="Layer labels to inspect (default: L45 L46)",
+        default=None,
+        help="Layer labels to inspect. Defaults to all layer labels present in the trace.",
     )
     parser.add_argument(
         "--as-json",
@@ -103,12 +109,15 @@ def main() -> None:
     path = Path(args.trace_json)
     data = load_trace(path)
     trace_steps = data["trace"]
+    layer_labels = args.layers or infer_layer_labels(data)
 
-    reports = [layer_report(trace_steps, layer_label) for layer_label in args.layers]
+    reports = [layer_report(trace_steps, layer_label) for layer_label in layer_labels]
     verdict, reason = diagnose(reports)
     summary = {
         "trace_json": str(path),
         "prompt_id": data.get("prompt_id"),
+        "model": data.get("model"),
+        "model_family": data.get("model_family"),
         "steps": len(trace_steps),
         "layers": {report["layer"]: report for report in reports},
         "verdict": verdict,

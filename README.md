@@ -60,6 +60,7 @@ transcender/              # Installable Python package
 
 scripts/
   track_a/                # Canonical: MLX engine, exit layer benchmark, recon, server
+  track_a_gpu/            # Diagnostic: manual-reference GPU validation + helpers
   track_b/                # Scoped negative baseline: cascade engine + benchmark
   track_c/                # Validated: Gemma profile/benchmark/selective-depth, dense family validation
   exploratory/            # Probes: advanced Gemma probe, Llama family-sensitive, cache-aware
@@ -67,6 +68,7 @@ scripts/
 
 artifacts/
   track_a/                # Track A benchmark JSONs
+  track_a_gpu/            # Local GPU diagnostic traces and benchmark summaries (non-canonical)
   track_b/                # Track B benchmark JSONs
   track_c/                # Gemma benchmark + selective-depth JSONs
   dense_followup/         # Llama/Mistral late-checkpoint validation + exploratory probe JSONs
@@ -121,6 +123,10 @@ pytest tests/ -v
 | `scripts/track_a/transcender_top1_agree_benchmark.py` | A | Supplementary | Earlier GPT-OSS blend strategy benchmark |
 | `scripts/track_a/transcender_recon.py` | A | Canonical | GPT-OSS KL reconnaissance profiler |
 | `scripts/track_a/transcender_server.py` | A | Canonical | FastAPI inference server |
+| `scripts/track_a_gpu/transcender_gpu_reproduction.py` | A | Diagnostic | Manual-reference GPU shared-context validation for raw exit vs composed `top1_agree` |
+| `scripts/track_a_gpu/analyze_debug_trace.py` | A | Diagnostic | Summarize a single-prompt GPU trace before trusting aggregate results |
+| `scripts/track_a_gpu/summarize_benchmark.py` | A | Diagnostic | Summarize aggregate GPU validation JSON by layer |
+| `scripts/track_a_gpu/compare_benchmarks.py` | A | Diagnostic | Compare multiple GPU benchmark JSON files across models |
 | `scripts/track_b/transcender_track_b_cascade.py` | B | Negative baseline | Cross-model cascade engine |
 | `scripts/track_b/transcender_track_b_benchmark.py` | B | Negative baseline | Track A vs Track B comparison |
 | `scripts/track_c/transcender_track_c_gemma_profile.py` | C | Validated | Gemma KL depth profiling |
@@ -141,8 +147,79 @@ python scripts/track_a/transcender_server.py --model /path/to/gpt-oss-20b --port
 ## What Is Experimental
 
 - Real dense-model selective-depth remains practically weak across all tested families
+- The GPU Track A path in `scripts/track_a_gpu/` is a diagnostic off-MLX validation flow, not a canonical paper benchmark or serving benchmark
 - Optional post-release directions: family-sensitive continuation criteria, token-difficulty-aware routing, cache-aware continuation
 - See [docs/NEXT_EXPERIMENTS.md](docs/NEXT_EXPERIMENTS.md) for the archived post-release research backlog
+
+## GPU Track A Validation
+
+`scripts/track_a_gpu/` is the repo's off-MLX validation path for Track A. It exists to test whether the penultimate-layer frontier survives on GPU under a trustworthy manual-reference decode path. It is not the canonical paper evidence and it should not be read as a serving-speed benchmark. It also does not implement MLX-style entropy-gated physical skipping, so its aggregates are structural diagnostics rather than direct replacements for the MLX Track A release numbers.
+
+**Two axes**
+- Architecture class:
+  - sparse MoE
+  - dense
+- Validation status:
+  - empirically validated on this GPU path
+  - code-path supported, pending real runs
+
+**Architecture + validation status**
+- Sparse MoE:
+  - `Qwen/Qwen3-30B-A3B` — empirically validated GPU baseline
+  - `openai/gpt-oss-20b` — code-path supported, pending real run
+  - `mistralai/Mixtral-8x7B-Instruct-v0.1` — code-path supported, pending real run
+- Dense:
+  - `mistralai/Mistral-7B-Instruct-v0.3` — code-path supported, pending real run
+  - `meta-llama/Llama-3.1-8B-Instruct` — code-path supported, pending real run
+  - `google/gemma-3-4b-it` — code-path supported, pending real run
+  - `google/gemma-3-12b-it` — code-path supported, pending real run
+  - `google/gemma-3-27b-it` — code-path supported, pending real run
+  - older Gemma / Gemma2 text checkpoints — code-path supported, pending real runs
+
+Gemma 3 is a dense family, not a sparse-MoE family. In this GPU validation flow it should be discussed at the checkpoint level, especially `4B`, `12B`, and `27B`, because those sizes imply different memory/runtime costs and make Gemma 3 a size-aware dense comparison axis rather than one undifferentiated model. Smaller `270M` and `1B` Gemma 3 text checkpoints exist, but they are not the main recommended dense-control targets here unless there is a specific reason to probe very small-scale behavior.
+
+The explicit manual path supports Qwen3/Qwen2-MoE, GPT-OSS, Mixtral, Llama, Mistral, Gemma, Gemma2, and Gemma 3 text checkpoints, with fail-fast checks for unsupported architectures. Multimodal Gemma 3 checkpoints are intentionally out of scope for this path.
+
+**Metric semantics**
+- `raw_exit_*`: raw intermediate-layer candidate tokens compared against full depth under shared full-depth context. This is the primary diagnostic metric for whether the tested exit layers genuinely diverge from the final layer.
+- `composed_*`: conservative `top1_agree` composition outputs. Because disagreement falls back to the full-depth token, these metrics are a composition diagnostic, not a substitute for raw-exit divergence.
+- `avg_top1_agreement_rate`: per-token fraction of raw top-1 agreement between the exit layer and full depth.
+
+**Trust rule**
+- Run a single-prompt debug trace first.
+- Inspect the trace directly or run the trace-analysis helper.
+- Only trust aggregate benchmark output after at least one trace shows real raw divergence and sane fallback behavior.
+- Do not treat `composed_exact_match = 1.0` as the frontier claim. The main signal is raw-exit divergence and penultimate-vs-earlier-layer behavior.
+
+By default, the GPU script tests the model's penultimate-minus-one and penultimate layers. Keep explicit layer numbers for model-specific checks in the runbook; use the default behavior for the top-level flow.
+
+See [scripts/track_a_gpu/RUNBOOK.md](scripts/track_a_gpu/RUNBOOK.md) for the full GPU validation flow.
+
+```bash
+# 1) Single-prompt debug trace
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model Qwen/Qwen3-30B-A3B \
+  --quantize 4bit \
+  --debug-trace \
+  --prompt-id P2 \
+  --max-new-tokens 16 \
+  --output artifacts/track_a_gpu/qwen3_trace_p2.json
+
+# 2) Trace analysis helper
+python scripts/track_a_gpu/analyze_debug_trace.py \
+  artifacts/track_a_gpu/qwen3_trace_p2.json
+
+# 3) Full benchmark run
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model Qwen/Qwen3-30B-A3B \
+  --quantize 4bit \
+  --max-new-tokens 48 \
+  --output artifacts/track_a_gpu/qwen3_gpu_reproduction_n63.json
+
+# 4) Benchmark summary helper
+python scripts/track_a_gpu/summarize_benchmark.py \
+  artifacts/track_a_gpu/qwen3_gpu_reproduction_n63.json
+```
 
 ## Papers / Docs
 

@@ -56,6 +56,53 @@ python scripts/track_a/transcender_exit_layer_benchmark.py \
 
 **Scope warning:** TPS and TTFT numbers are hardware-specific. Exact match and `avg_layers_saved` are deterministic under greedy decoding and the fixed prompt suite.
 
+### Track A GPU Validation (Diagnostic, Non-Canonical)
+
+The repo also includes an off-MLX GPU validation path in `scripts/track_a_gpu/`. This is a diagnostic external-validity check, not a replacement for the canonical MLX Track A artifacts. It does not implement MLX-style entropy-gated physical skipping, so its JSON outputs should be read as structural diagnostics rather than direct substitutes for the MLX release metrics.
+
+The GPU script uses a manual reference decode path under shared full-depth context:
+- prefill once
+- decode step-by-step
+- extract L45/L46 and final-layer candidate logits explicitly
+- report raw exit tokens separately from composed `top1_agree` tokens
+
+**Metric semantics:**
+- `raw_exit_*` measures the raw intermediate-layer candidate sequence against full depth under shared context. This is the primary frontier sanity metric.
+- `composed_*` measures the conservative `top1_agree` fallback path. Because disagreement falls back to the full-depth token, these metrics are diagnostic rather than a substitute for raw divergence.
+- `avg_top1_agreement_rate` measures per-token raw top-1 agreement between the exit layer and full depth.
+
+**Trust rule:** Run a single-prompt debug trace first. Only trust multi-prompt aggregate output after the trace shows real raw divergence and sane fallback behavior. If one prompt is inconclusive, try another prompt before interpreting aggregate benchmark numbers.
+
+```bash
+# 1) Single-prompt debug trace
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model Qwen/Qwen3-30B-A3B \
+  --quantize 4bit \
+  --debug-trace \
+  --prompt-id P2 \
+  --exit-layers 45 46 \
+  --max-new-tokens 16 \
+  --output artifacts/track_a_gpu/qwen3_trace_p2.json
+
+# 2) Trace analysis helper
+python scripts/track_a_gpu/analyze_debug_trace.py \
+  artifacts/track_a_gpu/qwen3_trace_p2.json
+
+# 3) Full benchmark run
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model Qwen/Qwen3-30B-A3B \
+  --quantize 4bit \
+  --exit-layers 45 46 \
+  --max-new-tokens 48 \
+  --output artifacts/track_a_gpu/qwen3_gpu_reproduction_n63.json
+
+# 4) Benchmark summary helper
+python scripts/track_a_gpu/summarize_benchmark.py \
+  artifacts/track_a_gpu/qwen3_gpu_reproduction_n63.json
+```
+
+See [scripts/track_a_gpu/RUNBOOK.md](scripts/track_a_gpu/RUNBOOK.md) for the full provider/setup/shutdown runbook.
+
 ---
 
 ## Track B — Scoped Negative Cascade Baseline
