@@ -54,6 +54,18 @@ DEFAULT_KARMA_FEATURES = [
     "adjacent_top1_agree",
 ]
 
+KARMA_FEATURE_PRESETS = {
+    "full": DEFAULT_KARMA_FEATURES,
+    "relation_lite": [
+        "penultimate_entropy",
+        "topk_jaccard_at_k",
+        "adjacent_top1_agree",
+    ],
+    "entropy_only": [
+        "penultimate_entropy",
+    ],
+}
+
 KARMA_POSITIVE_LABEL = "need_penultimate"
 KARMA_NEGATIVE_LABEL = "need_full_depth"
 
@@ -89,6 +101,20 @@ def parse_feature_list(raw_features: str) -> List[str]:
     if not features:
         raise ValueError("At least one karma feature must be provided.")
     return features
+
+
+def resolve_karma_features(
+    raw_features: Optional[str],
+    preset_name: str,
+) -> List[str]:
+    if raw_features is not None:
+        return parse_feature_list(raw_features)
+    if preset_name not in KARMA_FEATURE_PRESETS:
+        raise ValueError(
+            f"Unknown karma feature preset '{preset_name}'. "
+            f"Expected one of {sorted(KARMA_FEATURE_PRESETS)}."
+        )
+    return list(KARMA_FEATURE_PRESETS[preset_name])
 
 
 def label_counts(rows: List[Dict[str, Any]]) -> Dict[str, int]:
@@ -244,6 +270,7 @@ def fit_stage_b_karma_logistic(
     topk_overlap_threshold: int,
     logit_delta_l2_threshold: Optional[float],
     penultimate_entropy_threshold: float,
+    penultimate_margin_threshold: float,
 ) -> Dict[str, Any]:
     validate_karma_rows(rows, features)
 
@@ -497,6 +524,7 @@ def fit_stage_b_karma_logistic(
         topk_overlap_threshold=topk_overlap_threshold,
         logit_delta_l2_threshold=logit_delta_l2_threshold,
         penultimate_entropy_threshold=penultimate_entropy_threshold,
+        penultimate_margin_threshold=penultimate_margin_threshold,
     )
 
     raw_bias = float(bias)
@@ -569,6 +597,7 @@ def build_stage_b_results(
     topk_overlap_threshold: int,
     logit_delta_l2_threshold: Optional[float],
     penultimate_entropy_threshold: float,
+    penultimate_margin_threshold: float,
 ) -> List[Dict[str, Any]]:
     scoped_rows = stage_b_rows(rows)
     results = [
@@ -599,6 +628,15 @@ def build_stage_b_results(
             accept_fn=lambda row: float(row["penultimate_entropy"]) <= penultimate_entropy_threshold,
             parameters={"threshold": penultimate_entropy_threshold},
         ),
+        evaluate_accept_rule(
+            stage="stage_b",
+            scope="rows where earlier oracle miss requires deeper decision",
+            rows=scoped_rows,
+            positive_label="need_penultimate",
+            rule_name="penultimate_margin_ge",
+            accept_fn=lambda row: float(row["penultimate_margin"]) >= penultimate_margin_threshold,
+            parameters={"threshold": penultimate_margin_threshold},
+        ),
     ]
     if logit_delta_l2_threshold is not None:
         results.append(
@@ -623,6 +661,7 @@ def build_summary(
     topk_overlap_threshold: int,
     logit_delta_l2_threshold: Optional[float],
     penultimate_entropy_threshold: float,
+    penultimate_margin_threshold: float,
     input_path: Path,
     karma_logistic: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -647,6 +686,7 @@ def build_summary(
             topk_overlap_threshold=topk_overlap_threshold,
             logit_delta_l2_threshold=logit_delta_l2_threshold,
             penultimate_entropy_threshold=penultimate_entropy_threshold,
+            penultimate_margin_threshold=penultimate_margin_threshold,
         ),
         "notes": (
             "Offline proxy evaluation only. These rules are measured against "
@@ -740,6 +780,12 @@ def main() -> None:
         help="Penultimate entropy acceptance threshold for the Stage B baseline.",
     )
     parser.add_argument(
+        "--stage-b-penultimate-margin-threshold",
+        type=float,
+        default=1.0,
+        help="Penultimate margin acceptance threshold for the Stage B confidence baseline.",
+    )
+    parser.add_argument(
         "--fit-karma-logistic",
         action="store_true",
         help=(
@@ -757,11 +803,22 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--karma-feature-preset",
+        choices=sorted(KARMA_FEATURE_PRESETS),
+        default="full",
+        help=(
+            "Suggested karma feature preset. Defaults to 'full'. "
+            "'relation_lite' uses penultimate_entropy, topk_jaccard_at_k, and "
+            "adjacent_top1_agree; 'entropy_only' uses only penultimate_entropy. "
+            "--karma-features overrides this preset when provided."
+        ),
+    )
+    parser.add_argument(
         "--karma-features",
-        default=",".join(DEFAULT_KARMA_FEATURES),
+        default=None,
         help=(
             "Comma-separated token-row fields for the karma logistic fit. "
-            "Defaults to a narrow interpretable Stage B feature set."
+            "When provided, this overrides --karma-feature-preset."
         ),
     )
     parser.add_argument(
@@ -795,17 +852,22 @@ def main() -> None:
         if args.stage_b_logit_delta_l2_threshold is not None
         else default_stage_b_logit_delta_threshold(stage_b_rows(rows))
     )
+    selected_karma_features = resolve_karma_features(
+        raw_features=args.karma_features,
+        preset_name=args.karma_feature_preset,
+    )
     karma_result = None
     if args.fit_karma_logistic:
         karma_result = fit_stage_b_karma_logistic(
             rows=stage_b_rows(rows),
-            features=parse_feature_list(args.karma_features),
+            features=selected_karma_features,
             karma_threshold=args.karma_threshold,
             train_fraction=args.karma_train_fraction,
             seed=args.karma_seed,
             topk_overlap_threshold=overlap_threshold,
             logit_delta_l2_threshold=logit_delta_threshold,
             penultimate_entropy_threshold=args.stage_b_penultimate_entropy_threshold,
+            penultimate_margin_threshold=args.stage_b_penultimate_margin_threshold,
         )
 
     summary = build_summary(
@@ -815,6 +877,7 @@ def main() -> None:
         topk_overlap_threshold=overlap_threshold,
         logit_delta_l2_threshold=logit_delta_threshold,
         penultimate_entropy_threshold=args.stage_b_penultimate_entropy_threshold,
+        penultimate_margin_threshold=args.stage_b_penultimate_margin_threshold,
         input_path=path,
         karma_logistic=karma_result,
     )

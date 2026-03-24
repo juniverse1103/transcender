@@ -1,6 +1,6 @@
-# Transcender-MLX Benchmark Summary
+# Transcender Benchmark Summary
 
-This summary belongs to `transcender-mlx`, the Apple MLX benchmark repo for the Transcender paper.
+This summary belongs to the broader `transcender` research repo, which includes the canonical Apple MLX benchmark path and the later follow-on evaluation work.
 
 **Date:** 2026-03-23 | **Hardware:** Apple M1 Pro, 32 GB unified memory
 

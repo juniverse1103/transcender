@@ -302,6 +302,8 @@ These results broaden the dense benchmark finding beyond Gemma, but do not justi
 
 \item \textbf{Evaluation scale.} Track~A uses 63 scored prompts across six categories; Tracks~B and~C use five. This is sufficient for directional findings but insufficient for statistical confidence intervals.
 
+\item \textbf{Offline Stage~B scope.} The GPU token-row analysis used for the Stage~B framing is a held-out offline diagnostic based on structural reproduction runs rather than a deployment benchmark. It supports a framing hypothesis about penultimate-layer risk, not a production policy, a universal threshold, or a serving-speed claim.
+
 \item \textbf{Dense selective-depth.} Real selective-depth runtimes on all three tested dense families were operationally correct but did not recover a practical speed-quality frontier in this configuration.
 
 \item \textbf{Continuation mechanisms.} The current selective-depth results demonstrate that checkpoint placement and late-checkpoint confidence alone are insufficient. Better continuation criteria, token-difficulty-aware routing, and lower-overhead cache repair remain open problems.
@@ -315,9 +317,18 @@ The evidence presented supports a narrow but consistent conclusion: adaptive-dep
 
 Track~A remains the primary empirical result. On GPT-OSS 20B, \texttt{top1\_agree} at the penultimate layer achieves 0.870 exact match (47 of 63 perfect), with approximately 49\% of decode tokens physically skipping the final MoE-MLP block. On Qwen3-30B-A3B, the same mechanism at the penultimate layer achieves 0.837 exact match (36 of 63 perfect) with a sharp quality cliff one layer earlier. The frontier structure reproduces across both tested sparse MoE families; the operating-point quality is model-dependent. Track~B provides a scoped negative baseline for this naive cascade configuration. Track~C contributes three findings: fixed-exit failure on dense models, strong compute-both composition recovery, and weak real selective-depth across three tested families.
 
+Separate offline GPU-path analysis also suggests that the penultimate acceptance question is better framed as a risk-estimation problem than as simple confidence thresholding: adjacent-layer agreement is too weak as a Stage~B signal, penultimate entropy is only a crude baseline, and a small offline logistic score is more naturally interpreted as the probability that full depth is still needed. We treat that result as a cautious diagnostic framing, not as a deployment claim.
+
 The dense-model conclusion is not that adaptive depth is impossible, but that neither fixed exit nor current selective-depth mechanisms establish a practical frontier on the tested dense architectures. The next research direction is correspondingly narrower: whether family-sensitive continuation criteria, token-difficulty-aware routing, and cache-aware continuation can close the gap. That remains to be validated.
 
 \appendix
+
+\section{Offline Stage B Diagnostic Note}
+\label{app:stageb}
+
+The GPU Track~A diagnostic path also supports token-level relation-row export for an offline Stage~B decision problem. The oracle labels distinguish three cases: \texttt{earlier\_correct}, \texttt{need\_penultimate}, and \texttt{need\_full\_depth}. Stage~A asks whether the earlier layer was already sufficient. Stage~B starts only after that has failed and asks whether the penultimate layer is still safe to accept or whether full depth is required.
+
+The current conclusion from this offline analysis is narrow. Simple adjacent-layer agreement is not a reliable cross-family Stage~B acceptance signal, and penultimate entropy is better treated as a weak confidence-style baseline than as a full explanation of the decision. A small offline logistic model over penultimate and adjacent-relation features, summarized internally as \texttt{karma}, is better interpreted as a risk score for whether the penultimate layer remains unsafe and full depth is still needed. Lower \texttt{karma} is therefore safer. We emphasize that this remains an offline held-out result and not a production routing policy.
 
 \section{Reproduction Commands}
 \label{app:repro}
@@ -397,6 +408,27 @@ python scripts/track_c/\
   --profile-output artifacts/recon/recon_mistral7b.json \
   --benchmark-output artifacts/dense_followup/\
     transcender_track_c_mistral7b_results.json
+\end{verbatim}
+}
+
+\noindent\textbf{GPU Track A --- token-row export and offline Stage~B:}
+{\small
+\begin{verbatim}
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model /path/to/model \
+  --emit-token-rows \
+  --token-rows-output artifacts/track_a_gpu/model_token_rows.jsonl \
+  --output artifacts/track_a_gpu/model_gpu_reproduction.json
+
+python scripts/track_a_gpu/evaluate_relation_proxies.py \
+  artifacts/track_a_gpu/model_token_rows.jsonl \
+  --fit-karma-logistic \
+  --as-json \
+  > artifacts/track_a_gpu/model_stage_b_karma.json
+
+python scripts/track_a_gpu/summarize_karma_results.py \
+  --format markdown \
+  artifacts/track_a_gpu/model_stage_b_karma.json
 \end{verbatim}
 }
 

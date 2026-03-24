@@ -1,0 +1,7 @@
+% Suggested insertion point:
+% - appendix or discussion section after the Track A GPU diagnostic framing
+% - not in the main claims table unless the model-level Stage B JSON outputs are
+%   checked in and the numeric paper table has been exported
+
+\paragraph{Offline Stage B risk modeling.}
+Using token-level relation rows from the GPU Track~A diagnostic path, we studied an offline Stage~B decision problem: conditioned on the earlier layer already missing, should the system accept the penultimate layer or continue to full depth? In this setting, simple adjacent-layer agreement was not a reliable cross-family acceptance signal, and penultimate entropy served only as a weak confidence-style baseline. A small offline logistic model over penultimate and adjacent-relation features, which we summarize as $\mathrm{karma} = p(\texttt{need\_full\_depth})$, gave a more useful interpretation of the problem as risk estimation rather than raw confidence thresholding. Lower karma therefore corresponds to safer penultimate acceptance. Across the current offline model set, this risk-style framing reduced accepted error relative to entropy thresholding while retaining useful recall in several families; however, these results remain held-out offline measurements and do not yet justify a deployment claim, a universal threshold, or a production serving policy.

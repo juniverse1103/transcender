@@ -1,8 +1,8 @@
-# Transcender-MLX
+# Transcender
 
-**MLX reference implementation and benchmark suite for the Transcender paper.**
+**Research repository for the Transcender paper and follow-on evaluation work.**
 
-`transcender-mlx` is the public Apple MLX implementation repo for the Transcender paper. Transcender remains the method and paper identity; `transcender-mlx` is the repository identity for the MLX reference implementation and release artifacts.
+This repo now covers more than the original Apple MLX release path. It contains the canonical MLX Track A results, the scoped Track B cascade baseline, the validated Track C dense-model work, and the off-MLX GPU diagnostic flow used for token-row export and offline Stage B analysis.
 
 **Transcender: Cross-layer composition control for adaptive transformer inference.**
 
@@ -55,8 +55,22 @@ Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 - Current cross-family Stage B evidence on the GPU path includes Gemma 3 `4B`, `12B`, and `27B`, GPT-OSS 20B, Mixtral 8x7B, and Mistral 7B.
 - The current conclusion is negative on the obvious heuristic: naive adjacent-layer agreement is not a viable Stage B acceptance signal across the current cross-family set.
 - Penultimate entropy remains a crude but live offline baseline, and the current framing is correction-vs-shared-failure rather than simple agreement.
-- The next narrow step is offline only: a small interpretable Stage B risk model called `karma`, where `karma = probability_of_need_full_depth` and lower is safer to accept at penultimate.
+- The current offline conclusion is that `karma` materially improves Stage B decision quality across multiple model families, but this remains a held-out offline evaluation result rather than an online policy claim.
+- `karma = probability_of_need_full_depth`, so lower is safer to accept at penultimate.
 - This is not an online serving policy and not a claim of final-free inference.
+- See [`docs/karma_stage_b_summary.md`](docs/karma_stage_b_summary.md) for the compact paper-facing Stage B note and export instructions.
+
+---
+
+## Stage A / Stage B Terminology
+
+- `Stage A`: decide whether the earlier candidate was already correct relative to full depth. In the oracle labels this is `earlier_correct`.
+- `Stage B`: condition on Stage A already missing, then decide whether the penultimate layer is sufficient or whether full depth is still needed. In the oracle labels this is `need_penultimate` versus `need_full_depth`.
+- `penultimate_entropy`: a confidence-style baseline on the penultimate logits. Lower entropy usually means a sharper distribution, but sharpness alone does not tell us whether the penultimate layer is still wrong in a way that only full depth will fix.
+- `penultimate_margin`: another confidence-style baseline using the penultimate top-1 vs top-2 gap. It is useful as a reference baseline, not as the current interpretation of the problem.
+- `adjacent_top1_agree` and related adjacent-agreement variants: relation heuristics based on whether the earlier and penultimate layers agree. The current offline result is negative here: agreement alone does not reliably separate `need_penultimate` from `need_full_depth`.
+- `karma`: a small offline logistic model over penultimate and adjacent-relation features. The intended interpretation is risk, not confidence: `karma = probability_of_need_full_depth`, and lower is safer.
+- Confidence and risk are not the same in this workflow. A token can look locally confident at penultimate and still be in a regime where the final layer is likely to correct it.
 
 ---
 
@@ -262,13 +276,20 @@ python scripts/track_a_gpu/transcender_gpu_reproduction.py \
 python scripts/track_a_gpu/evaluate_relation_proxies.py \
   artifacts/track_a_gpu/gpt_oss_20b_token_rows.jsonl \
   --fit-karma-logistic
+
+# 7) Compact markdown / CSV export for paper notes
+python scripts/track_a_gpu/summarize_karma_results.py \
+  --format markdown \
+  artifacts/track_a_gpu/*karma*.json
 ```
 
 ## Papers / Docs
 
 - [`paper/main.tex`](paper/main.tex) — Canonical arXiv draft and release source of truth
+- [`paper/snippets/offline_stage_b_karma_note.tex`](paper/snippets/offline_stage_b_karma_note.tex) — Ready-to-paste cautious LaTeX wording for the offline Stage B framing
 - [`paper/Transcender_Final_Whitepaper_v2.md`](paper/Transcender_Final_Whitepaper_v2.md) — Superseded markdown narrative retained with a status notice
 - [`docs/BENCHMARK_SUMMARY.md`](docs/BENCHMARK_SUMMARY.md) — Cross-track benchmark comparison
+- [`docs/karma_stage_b_summary.md`](docs/karma_stage_b_summary.md) — Compact Stage B summary, limitations, and export commands
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — Archived execution roadmap with release-status note
 - [`docs/NEXT_EXPERIMENTS.md`](docs/NEXT_EXPERIMENTS.md) — Archived optional post-release research notes
 

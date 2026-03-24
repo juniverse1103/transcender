@@ -45,6 +45,28 @@ Use the debug trace first. Do not trust aggregate benchmark output until the tra
 - `composed_*`: measures the conservative `top1_agree` composition path. Because disagreement falls back to the full-depth token, these metrics are a composition diagnostic, not a substitute for raw divergence.
 - `avg_top1_agreement_rate`: the per-token fraction of raw top-1 agreement between the exit layer and full depth.
 
+## Stage A And Stage B
+
+The token-row export and offline proxy scripts separate two different questions:
+
+- `Stage A`: was the earlier layer already correct relative to full depth?
+  - oracle label: `earlier_correct`
+  - typical baselines: `earlier_entropy`, `earlier_margin`
+- `Stage B`: conditional on Stage A already missing, is the penultimate layer enough or is full depth still needed?
+  - oracle labels: `need_penultimate`, `need_full_depth`
+  - typical baselines: `penultimate_entropy`, `penultimate_margin`, and adjacent-agreement variants
+
+This split matters because the current negative result is specifically about Stage B. Adjacent agreement is not the same thing as penultimate safety. A token can show strong local agreement or low entropy and still be in a regime where the final layer would correct the penultimate token.
+
+Current Stage B interpretation:
+
+- `penultimate_entropy`: a crude confidence-style baseline
+- `penultimate_margin`: another confidence-style baseline
+- `adjacent_top1_agree` and overlap / logit-delta variants: relation heuristics that have not held up as a reliable cross-family acceptance rule
+- `karma`: a small offline logistic model over penultimate and adjacent-relation features, interpreted as `probability_of_need_full_depth`
+
+In other words, the current framing is closer to risk estimation than to raw confidence thresholding. `karma` is not a serving policy. It is an offline held-out score used to test whether Stage B is better modeled as risk of still needing full depth.
+
 ## Two-Axis Framing
 
 Keep two axes separate:
