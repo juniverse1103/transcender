@@ -35,7 +35,40 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import torch
 from transformers.cache_utils import DynamicCache
-from transformers.masking_utils import create_causal_mask, create_sliding_window_causal_mask
+
+# transformers.masking_utils was introduced in ~4.48 (Gemma 3 era).
+# Lazy-import so the script works on 4.46.x where it does not exist.
+_masking_utils_available: bool | None = None
+create_causal_mask = None
+create_sliding_window_causal_mask = None
+
+
+def _ensure_masking_utils():
+    """Import masking helpers on first use; raise a clear error if unavailable."""
+    global _masking_utils_available, create_causal_mask, create_sliding_window_causal_mask
+    if _masking_utils_available is True:
+        return
+    if _masking_utils_available is False:
+        raise RuntimeError(
+            "transformers.masking_utils is not available in this transformers "
+            "version. The per_layer_attention_type mask path (Gemma 3) requires "
+            "transformers >= 4.48."
+        )
+    try:
+        from transformers.masking_utils import (
+            create_causal_mask as _ccm,
+            create_sliding_window_causal_mask as _swcm,
+        )
+        create_causal_mask = _ccm
+        create_sliding_window_causal_mask = _swcm
+        _masking_utils_available = True
+    except ImportError:
+        _masking_utils_available = False
+        raise RuntimeError(
+            "transformers.masking_utils is not available in this transformers "
+            "version. The per_layer_attention_type mask path (Gemma 3) requires "
+            "transformers >= 4.48."
+        )
 
 # ---------------------------------------------------------------------------
 # Prompts — same suite as MLX Track A. P1 is warmup (excluded from scoring).
@@ -204,8 +237,30 @@ def resolve_manual_reference_load_dtype(model_name: str) -> torch.dtype:
     return torch.bfloat16
 
 
+def _model_has_non_bnb_quant_config(model_name: str) -> bool:
+    """Return True if the pretrained config already ships a non-BitsAndBytes quantization_config."""
+    from transformers import AutoConfig
+
+    try:
+        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+    except Exception:
+        return False
+    qc = getattr(config, "quantization_config", None)
+    if qc is None:
+        return False
+    # qc can be a dict or a QuantizationConfigMixin subclass
+    if isinstance(qc, dict):
+        qtype = qc.get("quant_method", "")
+    else:
+        qtype = getattr(qc, "quant_method", "") or type(qc).__name__
+    qtype_lower = str(qtype).lower()
+    # Accept bitsandbytes as compatible; anything else (mxfp4, gptq, awq, …) conflicts
+    return "bitsandbytes" not in qtype_lower and "bnb" not in qtype_lower
+
+
 def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
     """Load the causal LM without relying on hidden-state capture side effects."""
+    import transformers
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -218,7 +273,20 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
         "torch_dtype": load_dtype,
     }
 
-    if quantize == "4bit":
+    # --- Quantization routing ---
+    quant_path_used = "none"
+    existing_quant = _model_has_non_bnb_quant_config(model_name)
+
+    if existing_quant and quantize in ("4bit", "8bit"):
+        # Model ships its own quantization config (e.g. MXFP4); do not inject
+        # a conflicting BitsAndBytesConfig.
+        print(
+            f"[quant] Model already has a non-BitsAndBytes quantization config. "
+            f"Skipping --quantize {quantize} to avoid conflict."
+        )
+        load_kwargs["device_map"] = "auto"
+        quant_path_used = "model_native"
+    elif quantize == "4bit":
         from transformers import BitsAndBytesConfig
 
         load_kwargs["quantization_config"] = BitsAndBytesConfig(
@@ -227,13 +295,25 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
             bnb_4bit_quant_type="nf4",
         )
         load_kwargs["device_map"] = "auto"
+        quant_path_used = "bitsandbytes_4bit"
     elif quantize == "8bit":
         from transformers import BitsAndBytesConfig
 
         load_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
         load_kwargs["device_map"] = "auto"
+        quant_path_used = "bitsandbytes_8bit"
     else:
         load_kwargs["device_map"] = device
+
+    # --- Startup environment log ---
+    print("=" * 60)
+    print(f"  transformers : {transformers.__version__}")
+    print(f"  torch        : {torch.__version__}")
+    print(f"  CUDA avail   : {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"  CUDA device  : {torch.cuda.get_device_name(0)}")
+    print(f"  quant path   : {quant_path_used}")
+    print("=" * 60)
 
     try:
         model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
@@ -737,6 +817,7 @@ def build_attention_mask_bundle(
         "position_ids": position_ids,
     }
     if parts.attention_mask_style == "per_layer_attention_type":
+        _ensure_masking_utils()  # lazy import; raises if transformers too old
         sliding_mask_kwargs = dict(mask_kwargs)
         if (
             parts.family == "gemma3"
@@ -758,12 +839,16 @@ def build_attention_mask_bundle(
             "sliding_attention": create_sliding_window_causal_mask(**sliding_mask_kwargs),
         }
     sliding_window = getattr(parts.config, "sliding_window", None)
-    mask_fn = (
-        create_causal_mask
-        if sliding_window is None
-        else create_sliding_window_causal_mask
-    )
-    return mask_fn(**mask_kwargs)
+    if sliding_window is not None:
+        _ensure_masking_utils()  # sliding window needs masking helpers
+        return create_sliding_window_causal_mask(**mask_kwargs)
+    # Standard causal mask: try masking_utils first, fall back to None
+    # (model's internal _update_causal_mask handles it for most architectures)
+    try:
+        _ensure_masking_utils()
+        return create_causal_mask(**mask_kwargs)
+    except RuntimeError:
+        return None
 
 
 def layer_attention_mask(attention_mask_bundle, decoder_layer):
@@ -1281,7 +1366,7 @@ def manual_forward_step(
                     attention_mask,
                     stage_summaries=stage_summaries,
                 )
-        else:
+        elif attention_mask_bundle is not None:
             ensure_valid_attention_mask(
                 "attention_mask_bundle",
                 attention_mask_bundle,

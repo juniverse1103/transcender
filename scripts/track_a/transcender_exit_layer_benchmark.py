@@ -359,6 +359,14 @@ def _qwen3_top1_agree(exit_layer: int) -> Qwen3MoeConfig:
     )
 
 
+def _qwen3_raw_exit(exit_layer: int) -> Qwen3MoeConfig:
+    return Qwen3MoeConfig(
+        hard_exit_layer=exit_layer,
+        entropy_threshold=-1.0,
+        enable_logit_blending=False,
+    )
+
+
 QWEN3_POLICY_SPECS = [
     PolicySpec(
         key="L40_top1_agree",
@@ -385,12 +393,28 @@ QWEN3_POLICY_SPECS = [
         config=_qwen3_top1_agree(45),
     ),
     PolicySpec(
+        key="L45_raw_exit",
+        label="L45_raw_exit",
+        description="One below penultimate raw-exit ablation (2 layers skipped).",
+        hypothesis="Tests whether Qwen3 L45 quality depends on composition rather than plain raw exit.",
+        dynamic=True,
+        config=_qwen3_raw_exit(45),
+    ),
+    PolicySpec(
         key="L46_top1_agree",
         label="L46_top1_agree",
         description="Penultimate exit — primary Qwen3 frontier candidate.",
         hypothesis="Analogous to GPT-OSS L22: skip exactly one layer.",
         dynamic=True,
         config=_qwen3_top1_agree(46),
+    ),
+    PolicySpec(
+        key="L46_raw_exit",
+        label="L46_raw_exit",
+        description="Penultimate raw-exit ablation (1 layer skipped).",
+        hypothesis="Tests whether the Qwen3 penultimate frontier remains viable without composition.",
+        dynamic=True,
+        config=_qwen3_raw_exit(46),
     ),
     PolicySpec(
         key="L47_full_depth_reference",
@@ -406,6 +430,28 @@ QWEN3_POLICY_SPECS = [
     ),
 ]
 
+
+def _gpt_oss_top1_agree(exit_layer: int) -> GptOssConfig:
+    return GptOssConfig(
+        hard_exit_layer=exit_layer,
+        entropy_threshold=-1.0,
+        enable_logit_blending=True,
+        blending_confidence_threshold=0.035,
+        blend_alpha=0.10,
+        confidence_signal="entropy",
+        blend_alpha_mode="fixed",
+        blend_strategy="top1_agree",
+    )
+
+
+def _gpt_oss_raw_exit(exit_layer: int) -> GptOssConfig:
+    return GptOssConfig(
+        hard_exit_layer=exit_layer,
+        entropy_threshold=-1.0,
+        enable_logit_blending=False,
+    )
+
+
 GPT_OSS_POLICY_SPECS = [
     PolicySpec(
         key="L20_top1_agree",
@@ -413,16 +459,7 @@ GPT_OSS_POLICY_SPECS = [
         description="Most aggressive valid exit (gate_activation_layer floor).",
         hypothesis="L20 is the earliest layer where the entropy gate can fire. Tests the mechanism at its limit.",
         dynamic=True,
-        config=GptOssConfig(
-            hard_exit_layer=20,
-            entropy_threshold=-1.0,
-            enable_logit_blending=True,
-            blending_confidence_threshold=0.035,
-            blend_alpha=0.10,
-            confidence_signal="entropy",
-            blend_alpha_mode="fixed",
-            blend_strategy="top1_agree",
-        ),
+        config=_gpt_oss_top1_agree(20),
     ),
     PolicySpec(
         key="L21_top1_agree",
@@ -430,16 +467,15 @@ GPT_OSS_POLICY_SPECS = [
         description="One layer below current best. Fills the L20-L22 gap.",
         hypothesis="If L21 ~ L22, the frontier is a stable band. If L21 << L22, the frontier is narrow.",
         dynamic=True,
-        config=GptOssConfig(
-            hard_exit_layer=21,
-            entropy_threshold=-1.0,
-            enable_logit_blending=True,
-            blending_confidence_threshold=0.035,
-            blend_alpha=0.10,
-            confidence_signal="entropy",
-            blend_alpha_mode="fixed",
-            blend_strategy="top1_agree",
-        ),
+        config=_gpt_oss_top1_agree(21),
+    ),
+    PolicySpec(
+        key="L21_raw_exit",
+        label="L21_raw_exit",
+        description="One layer below current best raw-exit ablation.",
+        hypothesis="Tests whether GPT-OSS L21 quality depends on composition rather than plain raw exit.",
+        dynamic=True,
+        config=_gpt_oss_raw_exit(21),
     ),
     PolicySpec(
         key="L22_top1_agree",
@@ -447,16 +483,15 @@ GPT_OSS_POLICY_SPECS = [
         description="Current layer-22 frontier control.",
         hypothesis="Agreement-aware blend at layer 22 is the current best adaptive-quality frontier.",
         dynamic=True,
-        config=GptOssConfig(
-            hard_exit_layer=22,
-            entropy_threshold=-1.0,
-            enable_logit_blending=True,
-            blending_confidence_threshold=0.035,
-            blend_alpha=0.10,
-            confidence_signal="entropy",
-            blend_alpha_mode="fixed",
-            blend_strategy="top1_agree",
-        ),
+        config=_gpt_oss_top1_agree(22),
+    ),
+    PolicySpec(
+        key="L22_raw_exit",
+        label="L22_raw_exit",
+        description="Layer-22 raw-exit ablation.",
+        hypothesis="Tests whether the GPT-OSS penultimate frontier remains viable without composition.",
+        dynamic=True,
+        config=_gpt_oss_raw_exit(22),
     ),
     PolicySpec(
         key="L23_full_depth_reference",
@@ -588,12 +623,13 @@ def main():
                 "description": spec.description,
                 "hypothesis": spec.hypothesis,
                 "settings": {
-                    "dynamic": spec.dynamic,
-                    "hard_exit_layer": spec.config.hard_exit_layer,
-                    "blending_confidence_threshold": spec.config.blending_confidence_threshold,
-                    "blend_alpha": spec.config.blend_alpha,
-                    "blend_strategy": spec.config.blend_strategy,
-                },
+                "dynamic": spec.dynamic,
+                "hard_exit_layer": spec.config.hard_exit_layer,
+                "enable_logit_blending": spec.config.enable_logit_blending,
+                "blending_confidence_threshold": spec.config.blending_confidence_threshold,
+                "blend_alpha": spec.config.blend_alpha,
+                "blend_strategy": spec.config.blend_strategy,
+            },
                 "prompt_results": prompt_results,
                 "aggregate_including_warmup": aggregate_prompt_results(prompt_results),
                 "aggregate_excluding_warmup": aggregate_prompt_results(included),
