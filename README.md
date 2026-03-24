@@ -14,20 +14,20 @@ Transcender is best understood not as a generic early-exit method, but as a cros
 
 | Model | Config | Exact Match | Avg Layers Saved | Gen TPS | N |
 |-------|--------|-------------|------------------|---------|---|
-| GPT-OSS 20B (MoE, 24L) | L22 `top1_agree` + entropy-gated exit | **0.941** | 0.528 | 21.1 | 15 |
-| Qwen3-30B-A3B (MoE, 48L) | L46 `top1_agree` + entropy-gated exit | **0.868** | 0.735 | 34.5 | 15 |
+| GPT-OSS 20B (MoE, 24L) | L22 `top1_agree` + entropy-gated exit | **0.870** | 0.490 | 18.6 | 63 |
+| Qwen3-30B-A3B (MoE, 48L) | L46 `top1_agree` + entropy-gated exit | **0.837** | 0.760 | 32.1 | 63 |
 
 Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 
-**Note on avg_layers_saved:** This metric reports the mean number of layers physically skipped per generated token, not the percentage of total compute saved. At L22 on a 24-layer model, each early-exiting token skips 1 layer; the 0.528 figure means ~53% of tokens triggered the entropy gate.
+**Note on avg_layers_saved:** This metric reports the mean number of layers physically skipped per generated token, not the percentage of total compute saved. At GPT-OSS L22 and Qwen3 L46, each early-exiting token skips exactly one layer, so `0.490` means roughly 49% of GPT-OSS decode tokens triggered the entropy gate and exited early.
 
 ---
 
 ## What Is Proven (Three Tracks)
 
 **Track A — Same-Model Adaptive Depth (Canonical)**
-- GPT-OSS 20B at L22 `top1_agree`: 0.941 exact match (13/15 perfect), 0.528 avg layers saved per token
-- Qwen3-30B-A3B at L46 `top1_agree`: 0.868 exact match (11/15 perfect), 0.735 avg layers saved per token
+- GPT-OSS 20B at L22 `top1_agree`: 0.870 exact match (47/63 perfect), 0.490 avg layers saved per token
+- Qwen3-30B-A3B at L46 `top1_agree`: 0.837 exact match (36/63 perfect), 0.760 avg layers saved per token
 - Both MoE families show a single viable penultimate-layer operating point with a sharp quality cliff one layer earlier
 
 **Track B — Cross-Model Cascade (Scoped Negative Baseline)**
@@ -48,6 +48,18 @@ Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 
 ---
 
+## Current Research Status (GPU Track A / Offline Stage B)
+
+- `scripts/track_a_gpu/` now includes a trustworthy manual-reference decode path, oracle-style final-aware summaries, token-level relation-row export, and offline proxy evaluation helpers.
+- Token rows can capture already-exported adjacent-layer features such as entropy, margin, rank, overlap, and logit-delta signals for the previous-vs-penultimate comparison.
+- Current cross-family Stage B evidence on the GPU path includes Gemma 3 `4B`, `12B`, and `27B`, GPT-OSS 20B, Mixtral 8x7B, and Mistral 7B.
+- The current conclusion is negative on the obvious heuristic: naive adjacent-layer agreement is not a viable Stage B acceptance signal across the current cross-family set.
+- Penultimate entropy remains a crude but live offline baseline, and the current framing is correction-vs-shared-failure rather than simple agreement.
+- The next narrow step is offline only: a small interpretable Stage B risk model called `karma`, where `karma = probability_of_need_full_depth` and lower is safer to accept at penultimate.
+- This is not an online serving policy and not a claim of final-free inference.
+
+---
+
 ## Repository Structure
 
 ```
@@ -60,7 +72,7 @@ transcender/              # Installable Python package
 
 scripts/
   track_a/                # Canonical: MLX engine, exit layer benchmark, recon, server
-  track_a_gpu/            # Diagnostic: manual-reference GPU validation + helpers
+  track_a_gpu/            # Diagnostic: manual-reference GPU validation, relation-row export, proxy evaluation
   track_b/                # Scoped negative baseline: cascade engine + benchmark
   track_c/                # Validated: Gemma profile/benchmark/selective-depth, dense family validation
   exploratory/            # Probes: advanced Gemma probe, Llama family-sensitive, cache-aware
@@ -68,7 +80,7 @@ scripts/
 
 artifacts/
   track_a/                # Track A benchmark JSONs
-  track_a_gpu/            # Local GPU diagnostic traces and benchmark summaries (non-canonical)
+  track_a_gpu/            # Local GPU diagnostic traces, benchmark summaries, and offline proxy inputs/outputs
   track_b/                # Track B benchmark JSONs
   track_c/                # Gemma benchmark + selective-depth JSONs
   dense_followup/         # Llama/Mistral late-checkpoint validation + exploratory probe JSONs
@@ -123,10 +135,11 @@ pytest tests/ -v
 | `scripts/track_a/transcender_top1_agree_benchmark.py` | A | Supplementary | Earlier GPT-OSS blend strategy benchmark |
 | `scripts/track_a/transcender_recon.py` | A | Canonical | GPT-OSS KL reconnaissance profiler |
 | `scripts/track_a/transcender_server.py` | A | Canonical | FastAPI inference server |
-| `scripts/track_a_gpu/transcender_gpu_reproduction.py` | A | Diagnostic | Manual-reference GPU shared-context validation for raw exit vs composed `top1_agree` |
+| `scripts/track_a_gpu/transcender_gpu_reproduction.py` | A | Diagnostic | Manual-reference GPU shared-context validation; can also emit oracle summaries and token-level relation rows |
 | `scripts/track_a_gpu/analyze_debug_trace.py` | A | Diagnostic | Summarize a single-prompt GPU trace before trusting aggregate results |
 | `scripts/track_a_gpu/summarize_benchmark.py` | A | Diagnostic | Summarize aggregate GPU validation JSON by layer |
 | `scripts/track_a_gpu/compare_benchmarks.py` | A | Diagnostic | Compare multiple GPU benchmark JSON files across models |
+| `scripts/track_a_gpu/evaluate_relation_proxies.py` | A | Diagnostic | Offline Stage A / Stage B proxy evaluation on token rows, including optional `karma` logistic fitting |
 | `scripts/track_b/transcender_track_b_cascade.py` | B | Negative baseline | Cross-model cascade engine |
 | `scripts/track_b/transcender_track_b_benchmark.py` | B | Negative baseline | Track A vs Track B comparison |
 | `scripts/track_c/transcender_track_c_gemma_profile.py` | C | Validated | Gemma KL depth profiling |
@@ -148,12 +161,15 @@ python scripts/track_a/transcender_server.py --model /path/to/gpt-oss-20b --port
 
 - Real dense-model selective-depth remains practically weak across all tested families
 - The GPU Track A path in `scripts/track_a_gpu/` is a diagnostic off-MLX validation flow, not a canonical paper benchmark or serving benchmark
+- The offline Stage B proxy path in `scripts/track_a_gpu/` is for analysis only; `karma` is an internal offline risk score, not a deployable routing policy
 - Optional post-release directions: family-sensitive continuation criteria, token-difficulty-aware routing, cache-aware continuation
 - See [docs/NEXT_EXPERIMENTS.md](docs/NEXT_EXPERIMENTS.md) for the archived post-release research backlog
 
 ## GPU Track A Validation
 
 `scripts/track_a_gpu/` is the repo's off-MLX validation path for Track A. It exists to test whether the penultimate-layer frontier survives on GPU under a trustworthy manual-reference decode path. It is not the canonical paper evidence and it should not be read as a serving-speed benchmark. It also does not implement MLX-style entropy-gated physical skipping, so its aggregates are structural diagnostics rather than direct replacements for the MLX Track A release numbers.
+
+This path now also supports oracle-style final-aware summaries, token-level relation-row export, and offline proxy evaluation. The present Stage B conclusion is narrow: naive adjacent-layer agreement has not held up as a cross-family penultimate-acceptance signal, penultimate entropy is a crude live baseline, and the next step is offline interpretable risk modeling rather than another oracle mode.
 
 **Two axes**
 - Architecture class:
@@ -233,6 +249,19 @@ python scripts/track_a_gpu/transcender_gpu_reproduction.py \
 # 4) Benchmark summary helper
 python scripts/track_a_gpu/summarize_benchmark.py \
   artifacts/track_a_gpu/qwen3_gpu_reproduction_n63.json
+
+# 5) Optional token-row export for offline proxy analysis
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model openai/gpt-oss-20b \
+  --quantize none \
+  --emit-token-rows \
+  --token-rows-output artifacts/track_a_gpu/gpt_oss_20b_token_rows.jsonl \
+  --output artifacts/track_a_gpu/gpt_oss_20b_gpu_reproduction_n63.json
+
+# 6) Offline proxy evaluation, including optional karma fitting
+python scripts/track_a_gpu/evaluate_relation_proxies.py \
+  artifacts/track_a_gpu/gpt_oss_20b_token_rows.jsonl \
+  --fit-karma-logistic
 ```
 
 ## Papers / Docs
