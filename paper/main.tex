@@ -575,10 +575,12 @@ The following figures were generated during earlier exploratory phases of the re
 We also preserve two textual snippet modules that guided the structural framing of the matched-scope inter-track comparison and the offline Stage~B analysis.
 
 \subsection{Matched-Scope Note}
-\input{snippets/matched_scope_note.tex}
+\paragraph{Matched-scope interpretation.}
+The three empirical tracks should not be read as if they were all measured on a single pooled denominator. Track~A is the primary result and uses the canonical 64-prompt suite with the first prompt excluded as warmup, yielding $N{=}63$ scored prompts across six categories. The main Track~A table remains on that denominator. When the paper needs a direct cross-track comparison, it instead uses the shared expository subset defined by canonical prompt IDs $P1$--$P5$, with $P1$ excluded as warmup so that $P2$--$P5$ are scored. We therefore treat Track~B as a scoped negative baseline and Track~C as boundary-condition evidence, and we report any direct Track~A/B/C comparison on that matched subset rather than mixing it with the canonical Track~A $N{=}63$ table.
 
 \subsection{Offline Stage B Karma Note}
-\input{snippets/offline_stage_b_karma_note.tex}
+\paragraph{Offline Stage B risk modeling.}
+Using token-level relation rows from the GPU Track~A diagnostic path, we studied an offline Stage~B decision problem: conditioned on the earlier layer already missing, should the system accept the penultimate layer or continue to full depth? This analysis is intended as an additive diagnostic extension to the paper's main Track~A/B/C structure, not as a replacement for it. In this setting, simple adjacent-layer agreement was not a reliable cross-family acceptance signal, and penultimate entropy served only as a weak confidence-style baseline. A small offline logistic model over penultimate and adjacent-relation features, which we summarize as $\mathrm{karma} = p(\texttt{need\_full\_depth})$, gave a more useful interpretation of the problem as risk estimation rather than raw confidence thresholding. Lower karma therefore corresponds to safer penultimate acceptance. Across the current offline model set, this risk-style framing reduced accepted error relative to entropy thresholding while retaining useful recall in several families; however, these results remain held-out offline measurements and do not yet justify a deployment claim, a universal threshold, a production serving policy, or the removal of Track~B's negative baseline and Track~C's dense-model boundary evidence from the paper.
 
 \bibliographystyle{plain}
 \bibliography{references}
