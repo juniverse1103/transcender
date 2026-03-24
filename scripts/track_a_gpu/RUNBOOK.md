@@ -99,6 +99,7 @@ The manual-reference path now supports these HF backbone families explicitly:
 What is architecture-specific:
 
 - Gemma and Gemma2 require the same hidden-state scaling used by the HF backbone before the decoder stack.
+- GPT-OSS examples should use `--quantize none`, not the BitsAndBytes `4bit` path used for the other example checkpoints. The Hugging Face GPT-OSS checkpoint already carries its own quantization config, and overriding it with `BitsAndBytesConfig` fails.
 - GPT-OSS, Gemma2, and Gemma 3 use per-layer attention-mask selection (`full_attention` vs `sliding_attention`), and the manual path now mirrors that explicitly.
 - Gemma 3 text checkpoints use layer-type-specific rotary embeddings, so the manual path selects position embeddings per decoder layer instead of reusing a single generic object.
 - Gemma 2 and Gemma 3 can apply final logit softcapping; the manual path now mirrors that before top-1 comparison.
@@ -467,10 +468,12 @@ python scripts/track_a_gpu/summarize_benchmark.py \
 
 ### GPT-OSS 20B (Sparse MoE, highest-priority external validity)
 
+Use `--quantize none` here. Do not reuse the BitsAndBytes `4bit` example path for GPT-OSS.
+
 ```bash
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model openai/gpt-oss-20b \
-  --quantize 4bit \
+  --quantize none \
   --debug-trace \
   --prompt-id P2 \
   --max-new-tokens 16 \
@@ -478,7 +481,7 @@ python scripts/track_a_gpu/transcender_gpu_reproduction.py \
 
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model openai/gpt-oss-20b \
-  --quantize 4bit \
+  --quantize none \
   --max-new-tokens 48 \
   --output artifacts/track_a_gpu/gpt_oss_20b_gpu_reproduction_n63.json
 

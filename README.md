@@ -180,6 +180,8 @@ Gemma 3 is a dense family, not a sparse-MoE family. In this GPU validation flow 
 
 The explicit manual path supports Qwen3/Qwen2-MoE, GPT-OSS, Mixtral, Llama, Mistral, Gemma, Gemma2, and Gemma 3 text checkpoints, with fail-fast checks for unsupported architectures. Multimodal Gemma 3 checkpoints are intentionally out of scope for this path.
 
+For command examples, note that `openai/gpt-oss-20b` should currently be run with `--quantize none`, not the BitsAndBytes `4bit` path used in the other example commands.
+
 **Metric semantics**
 - `raw_exit_*`: raw intermediate-layer candidate tokens compared against full depth under shared full-depth context. This is the primary diagnostic metric for whether the tested exit layers genuinely diverge from the final layer.
 - `composed_*`: conservative `top1_agree` composition outputs. Because disagreement falls back to the full-depth token, these metrics are a composition diagnostic, not a substitute for raw-exit divergence.
