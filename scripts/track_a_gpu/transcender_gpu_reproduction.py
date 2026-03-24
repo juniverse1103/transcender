@@ -839,12 +839,17 @@ def build_attention_mask_bundle(
         "position_ids": position_ids,
     }
     if parts.attention_mask_style == "per_layer_attention_type":
+        if parts.family != "gemma3":
+            # For non-Gemma3 families (gpt_oss, gemma2), each decoder layer
+            # updates the DynamicCache in-place during a single forward step.
+            # An external mask built before the layer loop can become stale
+            # (off-by-one) at certain total-sequence-length boundaries in
+            # transformers 5.3.0.dev0. Returning None is safe because the
+            # model's internal _update_causal_mask handles masking correctly.
+            return None
         _ensure_masking_utils()  # lazy import; raises if transformers too old
         sliding_mask_kwargs = dict(mask_kwargs)
-        if (
-            parts.family == "gemma3"
-            and getattr(parts.config, "use_bidirectional_attention", False)
-        ):
+        if getattr(parts.config, "use_bidirectional_attention", False):
             mask_kwargs["or_mask_function"] = (
                 lambda *args: torch.tensor(True, dtype=torch.bool)
             )
