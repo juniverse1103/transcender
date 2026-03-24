@@ -52,25 +52,26 @@ This should be read as one layer of the story, not the whole story. Stage B help
 
 ## Cross-Model Paper Table
 
-At edit time, the checked-in repo snapshot did not include the model-level Stage B JSON outputs under `artifacts/track_a_gpu/`, and `/workspace/artifacts/track_a_gpu/` was also absent. The table below therefore preserves the intended paper schema without inventing numbers.
+The table below was exported from the current pod artifacts under `/workspace/artifacts/track_a_gpu/*_karma_eval.json` using `scripts/track_a_gpu/summarize_karma_results.py --format markdown`. All rows below use the current default offline operating point with the full feature set and threshold `0.5`.
 
-| model | karma accepted_precision | karma positive_recall | karma accepted_error_rate | penultimate_entropy accepted_precision | penultimate_entropy positive_recall | penultimate_entropy accepted_error_rate | status |
-|---|---:|---:|---:|---:|---:|---:|---|
-| `google/gemma-3-4b-it` | pending | pending | pending | pending | pending | pending | model is in the current Stage B evaluation set, but the result JSON is not present in this repo snapshot |
-| `google/gemma-3-12b-it` | pending | pending | pending | pending | pending | pending | model is in the current Stage B evaluation set, but the result JSON is not present in this repo snapshot |
-| `google/gemma-3-27b-it` | pending | pending | pending | pending | pending | pending | model is in the current Stage B evaluation set, but the result JSON is not present in this repo snapshot |
-| `openai/gpt-oss-20b` | pending | pending | pending | pending | pending | pending | model is in the current Stage B evaluation set, but the result JSON is not present in this repo snapshot |
-| `mistralai/Mixtral-8x7B-Instruct-v0.1` | pending | pending | pending | pending | pending | pending | model is in the current Stage B evaluation set, but the result JSON is not present in this repo snapshot |
-| `mistralai/Mistral-7B-Instruct-v0.3` | pending | pending | pending | pending | pending | pending | model is in the current Stage B evaluation set, but the result JSON is not present in this repo snapshot |
+| model | karma accepted_precision | karma positive_recall | karma accepted_error_rate | penultimate_entropy accepted_precision | penultimate_entropy positive_recall | penultimate_entropy accepted_error_rate |
+|---|---:|---:|---:|---:|---:|---:|
+| `google/gemma-3-4b-it` | 0.859 | 0.938 | 0.097 | 0.645 | 0.923 | 0.320 |
+| `google/gemma-3-12b-it` | 0.538 | 0.700 | 0.062 | 0.109 | 1.000 | 0.845 |
+| `google/gemma-3-27b-it` | 0.920 | 0.976 | 0.061 | 0.726 | 0.988 | 0.270 |
+| `openai/gpt-oss-20b` | 0.863 | 1.000 | 0.070 | 0.469 | 0.864 | 0.430 |
+| `mistralai/Mixtral-8x7B-Instruct-v0.1` | 0.828 | 0.964 | 0.110 | 0.560 | 0.936 | 0.405 |
+| `mistralai/Mistral-7B-Instruct-v0.3` | 0.861 | 0.961 | 0.094 | 0.694 | 0.903 | 0.240 |
 
 ## Current Takeaways
 
 - The current claim is not that Stage B has a deployable threshold. The current claim is that Stage B appears to be a risk-estimation problem.
 - Adjacent agreement is the main negative result. It is too weak to serve as the acceptance signal on its own.
 - Penultimate entropy remains a live baseline, but only as a crude confidence proxy.
-- The offline evidence to date suggests that `karma` materially improves accepted-error behavior at useful recall on multiple model families. That claim should be backed by the exported cross-model table once the model-level JSONs are copied into the repo.
+- At the current `0.5` operating point, `karma` improves accepted-error behavior versus entropy on all six exported models while keeping high recall on five of the six. The strongest regimes are `gemma-3-27b-it`, `gpt-oss-20b`, `gemma-3-4b-it`, `Mistral-7B`, and `Mixtral-8x7B`.
+- `gemma-3-12b-it` remains the weak or pathological regime in the current set. `karma` is still much better than entropy there, but the acceptance rate is low and recall is only `0.700` at threshold `0.5`. The seed sweep is also less stable there than on the other checkpoints.
 - This strengthens the interpretation of penultimate acceptance inside Track A, but it does not subsume the role of Track B or Track C in the paper.
-- Gemma 3 `12B` is already the weakest checkpoint in the checked-in raw penultimate benchmark notes. It should be treated as the first likely weak or pathological regime when the Stage B paper table is populated. Do not generalize that checkpoint-specific weakness into a universal dense-model statement.
+- Threshold sweeps reinforce the same story: the useful checkpoints keep a workable precision-recall tradeoff over a range of thresholds, while `gemma-3-12b-it` stays visibly weaker and more threshold-sensitive.
 
 ## Limitations
 
@@ -79,7 +80,8 @@ At edit time, the checked-in repo snapshot did not include the model-level Stage
 - not an online serving policy
 - threshold dependent
 - still needs stronger validation across more splits, prompts, and deployment conditions
-- the current checked-in repo snapshot lacks the model-level Stage B summary JSONs needed for a numeric appendix table
+- the numeric table above comes from pod-local artifact exports rather than checked-in result JSONs in this repo snapshot
+- seed sensitivity is non-trivial in the weakest regime, especially `gemma-3-12b-it`
 
 ## Repro / Export
 
@@ -98,11 +100,21 @@ Export the compact paper table once those JSONs exist:
 ```bash
 python3 scripts/track_a_gpu/summarize_karma_results.py \
   --format markdown \
-  artifacts/track_a_gpu/*stage_b_karma*.json
+  artifacts/track_a_gpu/*_karma_eval.json
 
 python3 scripts/track_a_gpu/summarize_karma_results.py \
   --format csv \
-  artifacts/track_a_gpu/*stage_b_karma*.json
+  artifacts/track_a_gpu/*_karma_eval.json
 ```
 
-If threshold sweeps or seed sweeps are present, select the one JSON per model that you actually want to cite in the paper before exporting the final table.
+Threshold and seed sweep summaries:
+
+```bash
+python3 scripts/track_a_gpu/summarize_karma_threshold_sweeps.py \
+  artifacts/track_a_gpu/*_karma_th_*.json
+
+python3 scripts/track_a_gpu/summarize_karma_seed_sweeps.py \
+  artifacts/track_a_gpu/*_karma_seed_*.json
+```
+
+If threshold sweeps or seed sweeps are present, keep the paper table fixed to one explicit operating point and treat the sweep summaries as robustness notes rather than as a replacement for the main cross-model table.
