@@ -673,8 +673,13 @@ def main():
             }
         )
 
-    control = next(item for item in config_results if item["key"] == control_key)
+    control = next((item for item in config_results if item["key"] == control_key), None)
     for item in config_results:
+        if control is None:
+            item["exit_layer_classification"] = None
+            item["delta_vs_control"] = None
+            continue
+
         item["exit_layer_classification"] = classify_exit_shift(
             item["aggregate_excluding_warmup"],
             control,
@@ -716,20 +721,20 @@ def main():
         "full_depth_beats_control": (
             best_full_depth["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             > control["aggregate_excluding_warmup"]["avg_exact_match_rate"]
-            if best_full_depth is not None
+            if best_full_depth is not None and control is not None
             else None
         ),
         "full_depth_improves_p3": (
             best_full_depth["p3_summary"]["exact_match_rate"]
             > control["p3_summary"]["exact_match_rate"]
-            if best_full_depth is not None
+            if best_full_depth is not None and control is not None
             else None
         ),
         "full_depth_gain_justifies_savings_loss": (
             best_full_depth["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             > control["aggregate_excluding_warmup"]["avg_exact_match_rate"]
             and best_full_depth["aggregate_excluding_warmup"]["avg_avg_layers_saved"] >= MEANINGFUL_SAVINGS_THRESHOLD
-            if best_full_depth is not None
+            if best_full_depth is not None and control is not None
             else None
         ),
         "quality_ranking": [item["label"] for item in ranked],

@@ -401,6 +401,12 @@ def module_device(module: torch.nn.Module) -> torch.device:
     raise ValueError(f"Cannot infer device for module {type(module).__name__}")
 
 
+def module_parameter_dtype(module: torch.nn.Module) -> Optional[torch.dtype]:
+    for param in module.parameters():
+        return param.dtype
+    return None
+
+
 def round_or_none(value: Optional[float], places: int = 6) -> Optional[float]:
     if value is None:
         return None
@@ -1403,10 +1409,34 @@ def manual_forward_step(
             )
 
     captured_hidden: Dict[int, torch.Tensor] = {}
+    first_step_dtype_log = (
+        past_seen_tokens == 0
+        and not getattr(manual_forward_step, "_dtype_debug_logged", False)
+    )
+    model_dtype = getattr(parts.backbone, "dtype", None) or getattr(
+        parts.config,
+        "torch_dtype",
+        None,
+    )
+    first_layer_dtype = module_parameter_dtype(parts.layers[0])
 
     for layer_idx, decoder_layer in enumerate(parts.layers[: parts.num_layers]):
         layer_label = f"L{layer_idx}"
         attention_type = getattr(decoder_layer, "attention_type", None)
+        target_dtype = module_parameter_dtype(decoder_layer) or hidden_states.dtype
+
+        if first_step_dtype_log and layer_idx == 0:
+            print(f"[dtype] model dtype: {model_dtype}")
+            print(f"[dtype] first decoder layer parameter dtype: {first_layer_dtype}")
+            print(f"[dtype] hidden_states before normalization: {hidden_states.dtype}")
+
+        if hidden_states.dtype != target_dtype:
+            hidden_states = hidden_states.to(target_dtype)
+
+        if first_step_dtype_log and layer_idx == 0:
+            print(f"[dtype] hidden_states after normalization: {hidden_states.dtype}")
+            manual_forward_step._dtype_debug_logged = True
+
         layer_output = decoder_layer(
             hidden_states,
             attention_mask=layer_attention_mask(attention_mask_bundle, decoder_layer),
