@@ -216,9 +216,12 @@ class NonFiniteTensorError(RuntimeError):
 
 def resolve_manual_reference_load_dtype(model_name: str) -> torch.dtype:
     """
-    Preserve existing fp16 behavior by default, but honor Gemma 3's configured
-    checkpoint dtype. The local Gemma 3 text checkpoints declare bfloat16 and
-    forcing fp16 can numerically corrupt the manual-reference path.
+    Preserve existing fp16 behavior by default, but honor:
+      1. Gemma 3's configured checkpoint dtype (bfloat16).
+      2. Models shipping non-BnB quantization configs (e.g. MXFP4) whose
+         weights are dequantized to bfloat16 by transformers at load time.
+         Loading such models with fp16 creates a dtype mismatch in MoE
+         grouped_mm ops (fp16 hidden states vs bf16 dequantized weights).
     """
     from transformers import AutoConfig
 
@@ -228,13 +231,26 @@ def resolve_manual_reference_load_dtype(model_name: str) -> torch.dtype:
     except Exception:
         return default_dtype
 
-    if getattr(config, "model_type", None) != "gemma3":
-        return default_dtype
+    # Models with native quantization configs (MXFP4, GPTQ, etc.) that are not
+    # BitsAndBytes will be dequantized to bfloat16 by transformers. We must
+    # match that dtype to avoid grouped_mm RuntimeError.
+    qc = getattr(config, "quantization_config", None)
+    if qc is not None:
+        if isinstance(qc, dict):
+            qtype = qc.get("quant_method", "")
+        else:
+            qtype = getattr(qc, "quant_method", "") or type(qc).__name__
+        qtype_lower = str(qtype).lower()
+        if "bitsandbytes" not in qtype_lower and "bnb" not in qtype_lower:
+            return torch.bfloat16
 
-    configured_dtype = getattr(config, "dtype", None) or getattr(config, "torch_dtype", None)
-    if isinstance(configured_dtype, torch.dtype):
-        return configured_dtype
-    return torch.bfloat16
+    if getattr(config, "model_type", None) == "gemma3":
+        configured_dtype = getattr(config, "dtype", None) or getattr(config, "torch_dtype", None)
+        if isinstance(configured_dtype, torch.dtype):
+            return configured_dtype
+        return torch.bfloat16
+
+    return default_dtype
 
 
 def _model_has_non_bnb_quant_config(model_name: str) -> bool:
