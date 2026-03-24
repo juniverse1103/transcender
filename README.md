@@ -6,6 +6,8 @@ This repository contains the code, paper-facing materials, and benchmark artifac
 
 **Transcender: Cross-layer composition control for adaptive transformer inference.**
 
+📄 **[Read the Paper (PDF)](transcender.pdf)**
+
 Transcender is best understood not as a generic early-exit method, but as a cross-layer composition control framework for adaptive transformer inference. The central problem is not early exit — it is how to combine information from different depth levels without corrupting the output distribution.
 
 ---
@@ -88,6 +90,8 @@ Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 ## Repository Structure
 
 ```
+transcender.pdf           # Compiled paper
+
 transcender/              # Installable Python package
   __init__.py             # Exports: TranscenderModel, SonRouter, SonRoutingLoss
   router.py               # Son Router + KL-calibrated routing loss
@@ -305,6 +309,7 @@ python scripts/track_a_gpu/summarize_karma_results.py \
 
 ## Papers / Docs
 
+- [`transcender.pdf`](transcender.pdf) — **The compiled research paper**
 - [`paper/main.tex`](paper/main.tex) — Canonical arXiv draft and release source of truth
 - [`paper/snippets/offline_stage_b_karma_note.tex`](paper/snippets/offline_stage_b_karma_note.tex) — Ready-to-paste cautious LaTeX wording for the offline Stage B framing
 - [`paper/Transcender_Final_Whitepaper_v2.md`](paper/Transcender_Final_Whitepaper_v2.md) — Superseded markdown narrative retained with a status notice

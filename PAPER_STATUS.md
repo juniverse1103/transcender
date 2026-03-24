@@ -19,10 +19,10 @@ Status of the Transcender paper package and the `transcender-mlx` MLX release re
 
 ## Remaining Human Action Before arXiv
 
-### 1. `.bbl` file generation
+### 1. `.bbl` file generation / PDF Compilation
 
-- arXiv requires either a `.bbl` file or inline `\thebibliography`. No local TeX engine was available to compile in this workspace.
-- **Action:** Compile `paper/main.tex` with `pdflatex` + `bibtex` (or on Overleaf) to generate `paper/references.bbl`, then include the `.bbl` in the arXiv upload.
+- **Completed:** The paper has been successfully built to `transcender.pdf` (which implicitly means the bibliography is resolved). The final `transcender.pdf` is in the repository root.
+- **Action:** Include `transcender.pdf` (or its source `main.tex` and `.bbl`) in the arXiv upload bundle.
 
 ### 2. Figures
 
