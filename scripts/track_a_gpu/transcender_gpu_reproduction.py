@@ -600,7 +600,7 @@ def infer_model_family(backbone: torch.nn.Module) -> str:
 
     families = {
         "gemma3": ("gemma3text", "gemma3"),
-        "qwen2_moe": ("qwen2_moe", "qwen2moe"),
+        "qwen2_moe": ("qwen2_moe", "qwen2moe", "qwen3_moe", "qwen3moe"),
         "mixtral": ("mixtral",),
         "llama": ("llama",),
         "mistral": ("mistral",),

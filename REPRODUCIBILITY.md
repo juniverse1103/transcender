@@ -66,6 +66,8 @@ The GPU script uses a manual reference decode path under shared full-depth conte
 - extract L45/L46 and final-layer candidate logits explicitly
 - report raw exit tokens separately from composed `top1_agree` tokens
 
+**GPT-OSS 20B note:** This model ships with MXFP4-quantized weights. The script auto-detects this and loads in bfloat16 to match the dequantized weight dtype. Use `--quantize none` (not `4bit`). Validated on NVIDIA H200: N=63 raw-exit EM 0.808 at L21 and 0.879 at L22.
+
 **Metric semantics:**
 - `raw_exit_*` measures the raw intermediate-layer candidate sequence against full depth under shared context. This is the primary frontier sanity metric.
 - `composed_*` measures the conservative `top1_agree` fallback path. Because disagreement falls back to the full-depth token, these metrics are diagnostic rather than a substitute for raw divergence.

@@ -298,7 +298,7 @@ These results broaden the dense benchmark finding beyond Gemma, but do not justi
 
 \item \textbf{Track B scope.} The cascade result is specific to a naive implementation, one model pair, and one local runtime. It should not be generalized to speculative decoding as a class of methods.
 
-\item \textbf{Runtime dependence.} All throughput, latency, and memory measurements are specific to a single Apple M1 Pro system using MLX. Direct comparison to GPU-based inference is not appropriate.
+\item \textbf{Runtime dependence.} All throughput, latency, and memory measurements are specific to a single Apple M1 Pro system using MLX. Direct comparison to GPU-based inference is not appropriate. An off-MLX structural reproduction on an NVIDIA H200 GPU (bfloat16, transformers 5.3.0.dev0) confirms the penultimate-layer frontier pattern on GPT-OSS 20B: N=63 raw-exit exact match $0.808$ at L21 and $0.879$ at L22, closely tracking the canonical MLX L22 result of $0.870$. This partially alleviates the single-runtime concern for frontier structure, though absolute metrics remain runtime-sensitive.
 
 \item \textbf{Evaluation scale.} Track~A uses 63 scored prompts across six categories, but the paper's direct cross-track comparisons still rely on a small matched expository subset with four scored prompts after warmup. This is sufficient for directional findings but insufficient for statistical confidence intervals.
 
@@ -494,6 +494,9 @@ python scripts/track_a_gpu/summarize_karma_results.py \
 
 \item \texttt{artifacts/track\_a/analysis/category\_analysis.json}:
   Per-category exact match, failure lists, and divergence classification for both MoE models at the penultimate layer.
+
+\item \texttt{artifacts/track\_a\_gpu/gpt\_oss\_20b\_gpu\_reproduction\_n63\_bf16.json}:
+  Off-MLX GPU structural reproduction of GPT-OSS 20B on NVIDIA H200 (bfloat16). N=63 raw-exit exact match $0.808$ at L21 and $0.879$ at L22. Diagnostic only; not a replacement for the canonical MLX Track~A artifacts.
 \end{itemize}
 }
 

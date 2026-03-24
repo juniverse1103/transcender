@@ -95,7 +95,7 @@ The GPU path is for structural validation only. It is not canonical paper eviden
 | Model / checkpoint | Status on this GPU path | Notes |
 |---|---|---|
 | `Qwen/Qwen3-30B-A3B` | Empirically validated | Current GPU manual-reference baseline; use this to confirm the path is sane before expanding |
-| `openai/gpt-oss-20b` | Empirically validated | Verified with `--quantize none --exit-layers 21 22`; canonical sparse supporting evidence on this GPU path |
+| `openai/gpt-oss-20b` | Empirically validated | Verified with `--quantize none --exit-layers 21 22` on NVIDIA H200 (bfloat16); canonical sparse supporting evidence on this GPU path |
 | `mistralai/Mixtral-8x7B-Instruct-v0.1` | Empirically validated | Verified with `--quantize 4bit --exit-layers 29 30`; very clean monotonic penultimate advantage |
 
 ### Dense
@@ -113,7 +113,7 @@ Gemma 3 should be discussed as a dense family with checkpoint-specific size vari
 
 ## Current Verified Outcomes
 
-- `openai/gpt-oss-20b` with `--quantize none --exit-layers 21 22`: sane trace; N=63 raw-exit exact match `0.840` at `L21` and `0.885` at `L22`; `L22` is at least as strong as `L21` on `55/63` prompts and strictly better on `53/63`.
+- `openai/gpt-oss-20b` with `--quantize none --exit-layers 21 22` on NVIDIA H200 (bfloat16): sane trace; N=63 raw-exit exact match `0.808` at `L21` and `0.879` at `L22`. The model ships MXFP4-quantized weights that transformers dequantizes to bfloat16; `resolve_manual_reference_load_dtype` now detects this and matches the dtype automatically. Earlier fp16 runs hit a `grouped_mm` dtype mismatch in the MoE path.
 - `mistralai/Mixtral-8x7B-Instruct-v0.1` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match `0.667` at `L29` and `0.837` at `L30`; `L30` is at least as strong as `L29` on `63/63` prompts and strictly better on `63/63`.
 - `mistralai/Mistral-7B-Instruct-v0.3` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match `0.715` at `L29` and `0.864` at `L30`; `L30` is at least as strong as `L29` on `63/63` prompts and strictly better on `62/63`.
 - `google/gemma-3-4b-it` with `--device cuda --quantize none --exit-layers 31 32`: sane trace and finite hidden/logit diagnostics; N=63 raw-exit exact match `0.833` at `L31` and `0.900` at `L32`; `L32` is at least as strong as `L31` on `58/63` prompts and strictly better on `54/63`.
@@ -141,7 +141,7 @@ The manual-reference path now supports these HF backbone families explicitly:
 What is architecture-specific:
 
 - Gemma and Gemma2 require the same hidden-state scaling used by the HF backbone before the decoder stack.
-- GPT-OSS examples should use `--quantize none`, not the BitsAndBytes `4bit` path used for the other example checkpoints. The Hugging Face GPT-OSS checkpoint already carries its own quantization config, and overriding it with `BitsAndBytesConfig` fails.
+- GPT-OSS examples should use `--quantize none`, not the BitsAndBytes `4bit` path used for the other example checkpoints. The Hugging Face GPT-OSS checkpoint already carries its own MXFP4 quantization config, and overriding it with `BitsAndBytesConfig` fails. The script automatically detects this and loads in bfloat16 to match the dequantized weight dtype.
 - GPT-OSS, Gemma2, and Gemma 3 use per-layer attention-mask selection (`full_attention` vs `sliding_attention`), and the manual path now mirrors that explicitly.
 - Gemma 3 text checkpoints use layer-type-specific rotary embeddings, so the manual path selects position embeddings per decoder layer instead of reusing a single generic object.
 - Gemma 2 and Gemma 3 can apply final logit softcapping; the manual path now mirrors that before top-1 comparison.
