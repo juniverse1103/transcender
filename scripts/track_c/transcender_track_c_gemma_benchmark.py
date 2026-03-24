@@ -29,29 +29,51 @@ import argparse
 import gc
 import json
 import math
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import mlx.core as mx
-import mlx.nn as mnn
-import numpy as np
-from mlx_lm import load as mlx_load
-from mlx_lm.generate import generate_step
-from mlx_lm.sample_utils import make_sampler
+mx = None
+mlx_load = None
+generate_step = None
+make_sampler = None
+
+TRACK_A_DIR = Path(__file__).resolve().parent.parent / "track_a"
+TRACK_B_DIR = Path(__file__).resolve().parent.parent / "track_b"
+for path in (TRACK_A_DIR, TRACK_B_DIR):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 from transcender_track_b_cascade import (
-    PROMPTS,
+    DEFAULT_PROMPT_SUITE,
     WARMUP_PROMPT_INDEX,
     apply_generic_chat_template,
     compare_sequences,
     mean,
     preview_text,
+    resolve_prompt_definitions,
 )
 from transcender_engine import build_harmony_messages
 
 SYSTEM_PROMPT = "You are a helpful assistant."
+
+
+def require_mlx_runtime():
+    global mx, mlx_load, generate_step, make_sampler
+    if mx is None:
+        import mlx.core as _mx
+        from mlx_lm import load as _mlx_load
+        from mlx_lm.generate import generate_step as _generate_step
+        from mlx_lm.sample_utils import make_sampler as _make_sampler
+
+        mx = _mx
+        mlx_load = _mlx_load
+        generate_step = _generate_step
+        make_sampler = _make_sampler
+    return mx, mlx_load, generate_step, make_sampler
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -428,14 +450,22 @@ def build_modes(num_layers: int, early: int, mid: int, late: int) -> List[ModeCo
     ]
 
 
-def build_prompt_pack(tokenizer) -> List[Dict[str, Any]]:
+def build_prompt_pack(
+    tokenizer,
+    prompt_definitions: Optional[List[Dict[str, str]]] = None,
+) -> List[Dict[str, Any]]:
     pack = []
-    for i, user_prompt in enumerate(PROMPTS, start=1):
-        messages = build_harmony_messages(user_prompt, SYSTEM_PROMPT)
+    if prompt_definitions is None:
+        prompt_definitions, _ = resolve_prompt_definitions(DEFAULT_PROMPT_SUITE, None)
+    for prompt_def in prompt_definitions:
+        prompt_id = prompt_def["prompt_id"]
+        user_prompt = prompt_def["user"]
+        system_prompt = prompt_def.get("system", SYSTEM_PROMPT)
+        messages = build_harmony_messages(user_prompt, system_prompt)
         prompt_text, _ = apply_generic_chat_template(tokenizer, messages)
         prompt_ids = tokenizer.encode(prompt_text)
         pack.append({
-            "prompt_id": f"P{i}",
+            "prompt_id": prompt_id,
             "user": user_prompt,
             "prompt_text": prompt_text,
             "prompt_ids": prompt_ids,
@@ -676,6 +706,24 @@ def main():
         "--output", type=str,
         default=str((Path(__file__).resolve().parent / "transcender_track_c_gemma_results.json").resolve()),
     )
+    parser.add_argument(
+        "--prompt-suite",
+        choices=("expository_5", "canonical_64"),
+        default=DEFAULT_PROMPT_SUITE,
+        help=(
+            "Prompt scope for the benchmark. "
+            "'expository_5' preserves the legacy Track C behavior. "
+            "'canonical_64' reuses the canonical Track A prompt definitions."
+        ),
+    )
+    parser.add_argument(
+        "--prompt-ids",
+        default=None,
+        help=(
+            "Optional comma-separated prompt ids to filter within the selected suite, "
+            "for example 'P1,P2,P3,P4,P5'. Warmup still excludes the first selected prompt."
+        ),
+    )
     parser.add_argument("--max-new-tokens", type=int, default=48)
     parser.add_argument(
         "--early-layer", type=int, default=16,
@@ -697,13 +745,22 @@ def main():
 
     # Load model
     print(f"\n  Loading {args.model}...")
+    require_mlx_runtime()
     model, tokenizer = mlx_load(args.model)
     engine = GemmaAdaptiveEngine(model, tokenizer)
     print(f"  Loaded: {engine.num_layers} layers, dense architecture")
 
     # Build prompts
-    prompt_pack = build_prompt_pack(tokenizer)
-    print(f"  Prompts: {len(prompt_pack)}")
+    prompt_definitions, prompt_scope = resolve_prompt_definitions(
+        prompt_suite=args.prompt_suite,
+        prompt_ids_arg=args.prompt_ids,
+    )
+    prompt_pack = build_prompt_pack(tokenizer, prompt_definitions=prompt_definitions)
+    print(
+        "  Prompt suite:"
+        f" {prompt_scope['prompt_suite']} | selected prompts: {prompt_scope['selected_prompt_count']}"
+        f" | scored after warmup: {prompt_scope['scored_prompt_count_after_warmup']}"
+    )
 
     # Build mode configs
     modes = build_modes(
@@ -756,6 +813,7 @@ def main():
         "architecture": "dense",
         "num_layers": engine.num_layers,
         "max_new_tokens": args.max_new_tokens,
+        "prompt_scope": prompt_scope,
         "exit_layers_tested": {
             "early": args.early_layer,
             "mid": args.mid_layer,

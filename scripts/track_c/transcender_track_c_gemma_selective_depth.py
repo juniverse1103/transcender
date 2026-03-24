@@ -32,22 +32,31 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import mlx.core as mx
-from mlx_lm import load as mlx_load
+mx = None
+mlx_load = None
+
+TRACK_A_DIR = Path(__file__).resolve().parent.parent / "track_a"
+TRACK_B_DIR = Path(__file__).resolve().parent.parent / "track_b"
+for path in (TRACK_A_DIR, TRACK_B_DIR):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 from transcender_engine import build_harmony_messages
 from transcender_track_b_cascade import (
-    PROMPTS,
+    DEFAULT_PROMPT_SUITE,
     WARMUP_PROMPT_INDEX,
     apply_generic_chat_template,
     compare_sequences,
     mean,
     preview_text,
+    resolve_prompt_definitions,
 )
 from transcender_track_c_gemma_benchmark import GemmaAdaptiveEngine
 
@@ -58,6 +67,17 @@ DEFAULT_MODEL_PATH = str(
 DEFAULT_OUTPUT_PATH = str(
     (Path(__file__).resolve().parent / "transcender_track_c_gemma_selective_depth_results.json").resolve()
 )
+
+
+def require_mlx_runtime():
+    global mx, mlx_load
+    if mx is None:
+        import mlx.core as _mx
+        from mlx_lm import load as _mlx_load
+
+        mx = _mx
+        mlx_load = _mlx_load
+    return mx, mlx_load
 
 
 @dataclass(frozen=True)
@@ -290,16 +310,26 @@ class GemmaSelectiveDepthEngine(GemmaAdaptiveEngine):
         }
 
 
-def build_prompt_pack(tokenizer, prompt_limit: Optional[int] = None) -> List[Dict[str, Any]]:
+def build_prompt_pack(
+    tokenizer,
+    prompt_definitions: Optional[List[Dict[str, str]]] = None,
+    prompt_limit: Optional[int] = None,
+) -> List[Dict[str, Any]]:
     pack = []
-    prompts = PROMPTS[:prompt_limit] if prompt_limit is not None else PROMPTS
-    for i, user_prompt in enumerate(prompts, start=1):
-        messages = build_harmony_messages(user_prompt, SYSTEM_PROMPT)
+    if prompt_definitions is None:
+        prompt_definitions, _ = resolve_prompt_definitions(DEFAULT_PROMPT_SUITE, None)
+    if prompt_limit is not None:
+        prompt_definitions = prompt_definitions[:prompt_limit]
+    for prompt_def in prompt_definitions:
+        prompt_id = prompt_def["prompt_id"]
+        user_prompt = prompt_def["user"]
+        system_prompt = prompt_def.get("system", SYSTEM_PROMPT)
+        messages = build_harmony_messages(user_prompt, system_prompt)
         prompt_text, _ = apply_generic_chat_template(tokenizer, messages)
         prompt_ids = tokenizer.encode(prompt_text)
         pack.append(
             {
-                "prompt_id": f"P{i}",
+                "prompt_id": prompt_id,
                 "user": user_prompt,
                 "prompt_text": prompt_text,
                 "prompt_ids": prompt_ids,
@@ -569,6 +599,24 @@ def main() -> None:
     )
     parser.add_argument("--model", type=str, default=DEFAULT_MODEL_PATH)
     parser.add_argument("--output", type=str, default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument(
+        "--prompt-suite",
+        choices=("expository_5", "canonical_64"),
+        default=DEFAULT_PROMPT_SUITE,
+        help=(
+            "Prompt scope for the benchmark. "
+            "'expository_5' preserves the legacy Track C behavior. "
+            "'canonical_64' reuses the canonical Track A prompt definitions."
+        ),
+    )
+    parser.add_argument(
+        "--prompt-ids",
+        default=None,
+        help=(
+            "Optional comma-separated prompt ids to filter within the selected suite, "
+            "for example 'P1,P2,P3,P4,P5'. Warmup still excludes the first selected prompt."
+        ),
+    )
     parser.add_argument("--max-new-tokens", type=int, default=48)
     parser.add_argument("--late-layer", type=int, default=31)
     parser.add_argument("--margin-threshold", type=float, default=0.50)
@@ -590,12 +638,41 @@ def main() -> None:
     print("  Track C Extension — Gemma 3 4B-IT Real Selective-Depth Benchmark")
     print("=" * 88)
     print(f"\n  Loading model: {args.model}")
+    require_mlx_runtime()
     model, tokenizer = mlx_load(args.model)
     engine = GemmaSelectiveDepthEngine(model, tokenizer)
     print(f"  Loaded: {engine.num_layers} layers")
 
-    prompt_pack = build_prompt_pack(tokenizer, prompt_limit=args.prompt_limit)
-    print(f"  Prompts: {len(prompt_pack)} | warmup index: {WARMUP_PROMPT_INDEX}")
+    prompt_definitions, prompt_scope = resolve_prompt_definitions(
+        prompt_suite=args.prompt_suite,
+        prompt_ids_arg=args.prompt_ids,
+    )
+    prompt_pack = build_prompt_pack(
+        tokenizer,
+        prompt_definitions=prompt_definitions,
+        prompt_limit=args.prompt_limit,
+    )
+    selected_prompt_ids = [prompt["prompt_id"] for prompt in prompt_pack]
+    if not selected_prompt_ids:
+        raise ValueError("Prompt selection resolved to zero prompts")
+    prompt_scope = {
+        **prompt_scope,
+        "selected_prompt_ids": selected_prompt_ids,
+        "selected_prompt_count": len(selected_prompt_ids),
+        "warmup_prompt_id": selected_prompt_ids[WARMUP_PROMPT_INDEX],
+        "scored_prompt_count_after_warmup": max(len(selected_prompt_ids) - 1, 0),
+        "scope_label": (
+            prompt_scope["scope_label"]
+            if args.prompt_limit is None
+            else f"{prompt_scope['scope_label']}__limit_{len(selected_prompt_ids)}"
+        ),
+    }
+    print(
+        "  Prompt suite:"
+        f" {prompt_scope['prompt_suite']} | selected prompts: {prompt_scope['selected_prompt_count']}"
+        f" | scored after warmup: {prompt_scope['scored_prompt_count_after_warmup']}"
+        f" | warmup prompt: {prompt_scope['warmup_prompt_id']}"
+    )
 
     modes = build_modes(
         late_layer=args.late_layer,
@@ -651,6 +728,7 @@ def main() -> None:
         "num_layers": engine.num_layers,
         "max_new_tokens": args.max_new_tokens,
         "warmup_prompt_index": WARMUP_PROMPT_INDEX,
+        "prompt_scope": prompt_scope,
         "prompt_prefill_strategy": "full_depth_prompt_prefill",
         "exit_layer": args.late_layer,
         "margin_threshold": args.margin_threshold,
