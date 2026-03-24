@@ -157,6 +157,36 @@ class ModelParts:
     attention_mask_style: str
 
 
+class NonFiniteTensorError(RuntimeError):
+    def __init__(self, details: Dict[str, Any]):
+        self.details = details
+        stage = details.get("stage", "unknown")
+        super().__init__(f"Non-finite tensor detected at {stage}")
+
+
+def resolve_manual_reference_load_dtype(model_name: str) -> torch.dtype:
+    """
+    Preserve existing fp16 behavior by default, but honor Gemma 3's configured
+    checkpoint dtype. The local Gemma 3 text checkpoints declare bfloat16 and
+    forcing fp16 can numerically corrupt the manual-reference path.
+    """
+    from transformers import AutoConfig
+
+    default_dtype = torch.float16
+    try:
+        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+    except Exception:
+        return default_dtype
+
+    if getattr(config, "model_type", None) != "gemma3":
+        return default_dtype
+
+    configured_dtype = getattr(config, "dtype", None) or getattr(config, "torch_dtype", None)
+    if isinstance(configured_dtype, torch.dtype):
+        return configured_dtype
+    return torch.bfloat16
+
+
 def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
     """Load the causal LM without relying on hidden-state capture side effects."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -165,9 +195,10 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
+    load_dtype = resolve_manual_reference_load_dtype(model_name)
     load_kwargs: Dict[str, Any] = {
         "trust_remote_code": True,
-        "torch_dtype": torch.float16,
+        "torch_dtype": load_dtype,
     }
 
     if quantize == "4bit":
@@ -175,7 +206,7 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
 
         load_kwargs["quantization_config"] = BitsAndBytesConfig(
             load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_compute_dtype=load_dtype,
             bnb_4bit_quant_type="nf4",
         )
         load_kwargs["device_map"] = "auto"
@@ -271,6 +302,91 @@ def module_device(module: torch.nn.Module) -> torch.device:
     for buffer in module.buffers():
         return buffer.device
     raise ValueError(f"Cannot infer device for module {type(module).__name__}")
+
+
+def round_or_none(value: Optional[float], places: int = 6) -> Optional[float]:
+    if value is None:
+        return None
+    return round(float(value), places)
+
+
+def summarize_tensor_numerics(tensor: torch.Tensor) -> Dict[str, Any]:
+    tensor = tensor.detach()
+    flat = tensor.float()
+    finite_mask = torch.isfinite(flat)
+    nan_mask = torch.isnan(flat)
+    pos_inf_mask = torch.isposinf(flat)
+    neg_inf_mask = torch.isneginf(flat)
+    finite_count = int(finite_mask.sum().item())
+
+    summary: Dict[str, Any] = {
+        "shape": list(tensor.shape),
+        "dtype": str(tensor.dtype),
+        "all_finite": bool(finite_mask.all().item()),
+        "has_nan": bool(nan_mask.any().item()),
+        "has_pos_inf": bool(pos_inf_mask.any().item()),
+        "has_neg_inf": bool(neg_inf_mask.any().item()),
+        "finite_count": finite_count,
+        "nan_count": int(nan_mask.sum().item()),
+        "pos_inf_count": int(pos_inf_mask.sum().item()),
+        "neg_inf_count": int(neg_inf_mask.sum().item()),
+    }
+    if finite_count > 0:
+        finite_values = flat[finite_mask]
+        summary["min_finite"] = round_or_none(float(finite_values.min().item()))
+        summary["max_finite"] = round_or_none(float(finite_values.max().item()))
+        summary["max_abs_finite"] = round_or_none(float(finite_values.abs().max().item()))
+    else:
+        summary["min_finite"] = None
+        summary["max_finite"] = None
+        summary["max_abs_finite"] = None
+    return summary
+
+
+def ensure_finite_tensor(
+    stage: str,
+    tensor: torch.Tensor,
+    stage_summaries: Optional[Dict[str, Any]] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    summary = summarize_tensor_numerics(tensor)
+    if stage_summaries is not None:
+        stage_summaries[stage] = summary
+    if not summary["all_finite"]:
+        details: Dict[str, Any] = {
+            "stage": stage,
+            "tensor_summary": summary,
+        }
+        if stage_summaries is not None:
+            details["stage_summaries"] = dict(stage_summaries)
+        if extra:
+            details.update(extra)
+        raise NonFiniteTensorError(details)
+    return summary
+
+
+def ensure_valid_attention_mask(
+    stage: str,
+    attention_mask: torch.Tensor,
+    stage_summaries: Optional[Dict[str, Any]] = None,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    summary = summarize_tensor_numerics(attention_mask)
+    summary["allows_negative_infinity"] = True
+    summary["all_valid_mask_values"] = not summary["has_nan"] and not summary["has_pos_inf"]
+    if stage_summaries is not None:
+        stage_summaries[stage] = summary
+    if not summary["all_valid_mask_values"]:
+        details: Dict[str, Any] = {
+            "stage": stage,
+            "tensor_summary": summary,
+        }
+        if stage_summaries is not None:
+            details["stage_summaries"] = dict(stage_summaries)
+        if extra:
+            details.update(extra)
+        raise NonFiniteTensorError(details)
+    return summary
 
 
 def infer_model_family(backbone: torch.nn.Module) -> str:
@@ -434,9 +550,16 @@ def project_hidden_to_logits(parts: ModelParts, hidden_state: torch.Tensor) -> t
     used by the model head. The earlier script skipped this norm step, which is
     not faithful for Qwen-family decoders.
     """
-    hidden_state = hidden_state.to(parts.device)
-    normed = parts.final_norm(hidden_state)
-    logits = parts.lm_head(normed)
+    normed = apply_final_norm(parts, hidden_state)
+    return apply_lm_head(parts, normed)
+
+
+def apply_final_norm(parts: ModelParts, hidden_state: torch.Tensor) -> torch.Tensor:
+    return parts.final_norm(hidden_state.to(parts.device))
+
+
+def apply_lm_head(parts: ModelParts, hidden_state: torch.Tensor) -> torch.Tensor:
+    logits = parts.lm_head(hidden_state)
     softcap = getattr(parts.config, "final_logit_softcapping", None)
     if softcap is not None:
         logits = logits / softcap
@@ -601,6 +724,11 @@ def compose_top1_agree_logits(
     return full_logits, False
 
 
+def greedy_token_from_logits(logits: torch.Tensor, stage: str) -> int:
+    ensure_finite_tensor(stage, logits)
+    return int(logits.float().argmax(dim=-1).item())
+
+
 def build_step_diagnostics(
     full_hidden: torch.Tensor,
     exit_hidden: torch.Tensor,
@@ -610,24 +738,42 @@ def build_step_diagnostics(
     exit_top1: int,
     softcap: Optional[float],
 ) -> Dict[str, Any]:
-    hidden_diff = (exit_hidden.float() - full_hidden.float()).abs()
-    logits_diff = (exit_logits.float() - full_logits.float()).abs()
-    full_max_abs_logit = float(full_logits.float().abs().max().item())
-    exit_max_abs_logit = float(exit_logits.float().abs().max().item())
+    full_hidden_summary = summarize_tensor_numerics(full_hidden)
+    exit_hidden_summary = summarize_tensor_numerics(exit_hidden)
+    full_logits_summary = summarize_tensor_numerics(full_logits)
+    exit_logits_summary = summarize_tensor_numerics(exit_logits)
+
+    hidden_diff_max = None
+    logits_diff_max = None
+    full_max_abs_logit = full_logits_summary["max_abs_finite"]
+    exit_max_abs_logit = exit_logits_summary["max_abs_finite"]
+
+    if full_hidden_summary["all_finite"] and exit_hidden_summary["all_finite"]:
+        hidden_diff = (exit_hidden.float() - full_hidden.float()).abs()
+        hidden_diff_max = float(hidden_diff.max().item())
+    if full_logits_summary["all_finite"] and exit_logits_summary["all_finite"]:
+        logits_diff = (exit_logits.float() - full_logits.float()).abs()
+        logits_diff_max = float(logits_diff.max().item())
 
     diagnostics: Dict[str, Any] = {
+        "full_hidden_summary": full_hidden_summary,
+        "raw_exit_hidden_summary": exit_hidden_summary,
+        "full_logits_summary": full_logits_summary,
+        "raw_exit_logits_summary": exit_logits_summary,
         "hidden_exact_equal_to_full": bool(torch.equal(exit_hidden, full_hidden)),
-        "hidden_max_abs_diff_vs_full": round(float(hidden_diff.max().item()), 8),
+        "hidden_max_abs_diff_vs_full": round_or_none(hidden_diff_max, places=8),
         "logits_exact_equal_to_full": bool(torch.equal(exit_logits, full_logits)),
-        "logits_max_abs_diff_vs_full": round(float(logits_diff.max().item()), 8),
-        "same_argmax_but_logits_differ": bool(
-            full_top1 == exit_top1 and not torch.equal(exit_logits, full_logits)
+        "logits_max_abs_diff_vs_full": round_or_none(logits_diff_max, places=8),
+        "same_argmax_but_logits_differ": (
+            bool(full_top1 == exit_top1 and not torch.equal(exit_logits, full_logits))
+            if full_logits_summary["all_finite"] and exit_logits_summary["all_finite"]
+            else None
         ),
-        "full_max_abs_logit": round(full_max_abs_logit, 6),
-        "raw_exit_max_abs_logit": round(exit_max_abs_logit, 6),
+        "full_max_abs_logit": round_or_none(full_max_abs_logit),
+        "raw_exit_max_abs_logit": round_or_none(exit_max_abs_logit),
     }
 
-    if softcap is not None:
+    if softcap is not None and full_max_abs_logit is not None and exit_max_abs_logit is not None:
         diagnostics["final_logit_softcap"] = float(softcap)
         diagnostics["full_max_abs_logit_over_softcap"] = round(
             full_max_abs_logit / softcap, 6
@@ -674,8 +820,12 @@ def manual_forward_step(
 
     This does not rely on `output_hidden_states` or `generate()` behavior.
     """
+    stage_summaries: Dict[str, Any] = {}
+
     input_ids = input_ids.to(parts.device)
     inputs_embeds = parts.embed_tokens(input_ids)
+    if include_hidden_tensors:
+        ensure_finite_tensor("inputs_embeds", inputs_embeds, stage_summaries=stage_summaries)
 
     past_seen_tokens = cache.get_seq_length() if cache is not None else 0
     cache_position = torch.arange(
@@ -699,9 +849,57 @@ def manual_forward_step(
     )
 
     hidden_states = apply_input_hidden_state_scaling(parts, inputs_embeds)
+    if include_hidden_tensors:
+        ensure_finite_tensor(
+            "hidden_states_after_input_scaling",
+            hidden_states,
+            stage_summaries=stage_summaries,
+        )
+        if isinstance(attention_mask_bundle, dict):
+            for mask_name, attention_mask in attention_mask_bundle.items():
+                ensure_valid_attention_mask(
+                    f"attention_mask_bundle.{mask_name}",
+                    attention_mask,
+                    stage_summaries=stage_summaries,
+                )
+        else:
+            ensure_valid_attention_mask(
+                "attention_mask_bundle",
+                attention_mask_bundle,
+                stage_summaries=stage_summaries,
+            )
+
+        if isinstance(position_embeddings, dict):
+            for layer_type, rotary_pair in position_embeddings.items():
+                cos, sin = rotary_pair
+                ensure_finite_tensor(
+                    f"position_embeddings.{layer_type}.cos",
+                    cos,
+                    stage_summaries=stage_summaries,
+                )
+                ensure_finite_tensor(
+                    f"position_embeddings.{layer_type}.sin",
+                    sin,
+                    stage_summaries=stage_summaries,
+                )
+        else:
+            cos, sin = position_embeddings
+            ensure_finite_tensor(
+                "position_embeddings.cos",
+                cos,
+                stage_summaries=stage_summaries,
+            )
+            ensure_finite_tensor(
+                "position_embeddings.sin",
+                sin,
+                stage_summaries=stage_summaries,
+            )
+
     captured_hidden: Dict[int, torch.Tensor] = {}
 
     for layer_idx, decoder_layer in enumerate(parts.layers[: parts.num_layers]):
+        layer_label = f"L{layer_idx}"
+        attention_type = getattr(decoder_layer, "attention_type", None)
         layer_output = decoder_layer(
             hidden_states,
             attention_mask=layer_attention_mask(attention_mask_bundle, decoder_layer),
@@ -716,17 +914,53 @@ def manual_forward_step(
             ),
         )
         hidden_states = extract_hidden_states(layer_output)
+        if include_hidden_tensors:
+            ensure_finite_tensor(
+                f"decoder_layers.{layer_label}.output",
+                hidden_states,
+                stage_summaries=stage_summaries,
+                extra={
+                    "layer_idx": layer_idx,
+                    "layer_label": layer_label,
+                    "attention_type": attention_type,
+                },
+            )
         if layer_idx in capture_layers:
             # Clone the snapshot to avoid any chance of later in-place layer
             # operations collapsing intermediate captures onto the final state.
             captured_hidden[layer_idx] = hidden_states[:, -1:, :].detach().clone()
 
     full_hidden = hidden_states[:, -1:, :].detach().clone()
-    full_logits = project_hidden_to_logits(parts, full_hidden)
-    exit_logits = {
-        layer_idx: project_hidden_to_logits(parts, hidden)
-        for layer_idx, hidden in captured_hidden.items()
-    }
+    full_normed = apply_final_norm(parts, full_hidden)
+    full_logits = apply_lm_head(parts, full_normed)
+    exit_logits = {}
+    for layer_idx, hidden in captured_hidden.items():
+        exit_normed = apply_final_norm(parts, hidden)
+        exit_logits[layer_idx] = apply_lm_head(parts, exit_normed)
+        if include_hidden_tensors:
+            ensure_finite_tensor(
+                f"exit_hidden.L{layer_idx}",
+                hidden,
+                stage_summaries=stage_summaries,
+                extra={"layer_idx": layer_idx, "layer_label": f"L{layer_idx}"},
+            )
+            ensure_finite_tensor(
+                f"exit_final_norm.L{layer_idx}",
+                exit_normed,
+                stage_summaries=stage_summaries,
+                extra={"layer_idx": layer_idx, "layer_label": f"L{layer_idx}"},
+            )
+            ensure_finite_tensor(
+                f"exit_logits.L{layer_idx}",
+                exit_logits[layer_idx],
+                stage_summaries=stage_summaries,
+                extra={"layer_idx": layer_idx, "layer_label": f"L{layer_idx}"},
+            )
+
+    if include_hidden_tensors:
+        ensure_finite_tensor("full_hidden", full_hidden, stage_summaries=stage_summaries)
+        ensure_finite_tensor("final_norm_output", full_normed, stage_summaries=stage_summaries)
+        ensure_finite_tensor("full_logits", full_logits, stage_summaries=stage_summaries)
 
     result = {
         "full_logits": full_logits.detach().cpu(),
@@ -735,6 +969,7 @@ def manual_forward_step(
     if include_hidden_tensors:
         result["full_hidden"] = full_hidden.detach().cpu()
         result["exit_hidden"] = {k: v.detach().cpu() for k, v in captured_hidden.items()}
+        result["stage_summaries"] = stage_summaries
     return result
 
 
@@ -768,22 +1003,46 @@ def run_shared_context_decode(
     composed_ids: Dict[int, List[int]] = {layer: [] for layer in exit_layers}
     agreement_counts: Dict[int, int] = {layer: 0 for layer in exit_layers}
     trace_steps: List[Dict[str, Any]] = []
+    non_finite_failure: Optional[Dict[str, Any]] = None
 
     t0 = time.perf_counter()
     input_ids = prompt_ids
 
     with torch.no_grad():
         for step_index in range(max_new_tokens):
-            step_out = manual_forward_step(
-                parts=parts,
-                input_ids=input_ids,
-                cache=cache,
-                capture_layers=exit_layers,
-                include_hidden_tensors=include_trace,
-            )
+            try:
+                step_out = manual_forward_step(
+                    parts=parts,
+                    input_ids=input_ids,
+                    cache=cache,
+                    capture_layers=exit_layers,
+                    include_hidden_tensors=include_trace,
+                )
+            except NonFiniteTensorError as exc:
+                non_finite_failure = {"step_index": step_index, **exc.details}
+                if include_trace:
+                    trace_steps.append(
+                        {
+                            "step_index": step_index,
+                            "numerics_failure": non_finite_failure,
+                        }
+                    )
+                break
 
             full_logits = step_out["full_logits"]
-            full_token = int(full_logits.argmax(dim=-1).item())
+            try:
+                full_token = greedy_token_from_logits(full_logits, "full_logits")
+            except NonFiniteTensorError as exc:
+                non_finite_failure = {"step_index": step_index, **exc.details}
+                if include_trace:
+                    trace_steps.append(
+                        {
+                            "step_index": step_index,
+                            "numerics_failure": non_finite_failure,
+                            "stage_summaries": step_out.get("stage_summaries"),
+                        }
+                    )
+                break
             full_ids.append(full_token)
 
             step_record: Dict[str, Any] = {
@@ -798,7 +1057,19 @@ def run_shared_context_decode(
             for layer_idx in exit_layers:
                 layer_label = f"L{layer_idx}"
                 layer_logits = step_out["exit_logits"][layer_idx]
-                exit_token = int(layer_logits.argmax(dim=-1).item())
+                try:
+                    exit_token = greedy_token_from_logits(layer_logits, f"exit_logits.{layer_label}")
+                except NonFiniteTensorError as exc:
+                    non_finite_failure = {"step_index": step_index, **exc.details}
+                    if include_trace:
+                        trace_steps.append(
+                            {
+                                "step_index": step_index,
+                                "numerics_failure": non_finite_failure,
+                                "stage_summaries": step_out.get("stage_summaries"),
+                            }
+                        )
+                    break
                 exit_ids[layer_idx].append(exit_token)
 
                 composed_logits, agreed = compose_top1_agree_logits(
@@ -844,7 +1115,12 @@ def run_shared_context_decode(
                         softcap=getattr(parts.config, "final_logit_softcapping", None),
                     )
 
+            if non_finite_failure is not None:
+                break
+
             if include_trace:
+                if "stage_summaries" in step_out:
+                    step_record["stage_summaries"] = step_out["stage_summaries"]
                 trace_steps.append(step_record)
 
             input_ids = torch.tensor([[full_token]], device=parts.device)
@@ -853,6 +1129,27 @@ def run_shared_context_decode(
 
     elapsed = time.perf_counter() - t0
     generation_tps = len(full_ids) / elapsed if elapsed > 0 else 0.0
+
+    result: Dict[str, Any] = {
+        "prompt_id": prompt_id,
+        "prompt_text": prompt_text,
+        "shared_context_mode": (
+            "full-depth token chosen at each step is used to advance decode state; "
+            "exit-layer tokens are candidate comparisons under the same context."
+        ),
+        "max_new_tokens": max_new_tokens,
+        "blend_alpha": blend_alpha,
+        "full_depth_ids": full_ids,
+        "full_depth_text": tokenizer.decode(full_ids, skip_special_tokens=False),
+        "generation_time_s": round(elapsed, 4),
+        "generation_tps": round(generation_tps, 2),
+    }
+    if non_finite_failure is not None:
+        result["status"] = "failed_non_finite"
+        result["non_finite_failure"] = non_finite_failure
+        if include_trace:
+            result["trace"] = trace_steps
+        return result
 
     layer_summaries: Dict[str, Any] = {}
     for layer_idx in exit_layers:
@@ -872,21 +1169,8 @@ def run_shared_context_decode(
             "top1_agreement_rate": round(agreement_counts[layer_idx] / len(full_ids), 6),
         }
 
-    result: Dict[str, Any] = {
-        "prompt_id": prompt_id,
-        "prompt_text": prompt_text,
-        "shared_context_mode": (
-            "full-depth token chosen at each step is used to advance decode state; "
-            "exit-layer tokens are candidate comparisons under the same context."
-        ),
-        "max_new_tokens": max_new_tokens,
-        "blend_alpha": blend_alpha,
-        "full_depth_ids": full_ids,
-        "full_depth_text": tokenizer.decode(full_ids, skip_special_tokens=False),
-        "generation_time_s": round(elapsed, 4),
-        "generation_tps": round(generation_tps, 2),
-        "layer_summaries": layer_summaries,
-    }
+    result["status"] = "ok"
+    result["layer_summaries"] = layer_summaries
     if include_trace:
         result["trace"] = trace_steps
     return result
@@ -1013,6 +1297,22 @@ def run_benchmark(
             blend_alpha=blend_alpha,
             include_trace=False,
         )
+        if trace_result.get("status") != "ok":
+            results["status"] = "failed_non_finite"
+            results["non_finite_failure"] = {
+                "prompt_id": prompt_id,
+                "prompt_text": prompt_text,
+                **trace_result["non_finite_failure"],
+            }
+            out_path = Path(output_path)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(json.dumps(results, indent=2))
+            failure = results["non_finite_failure"]
+            raise RuntimeError(
+                "Manual-reference path aborted on non-finite tensors at "
+                f"step {failure['step_index']} stage={failure['stage']}. "
+                f"Partial results written to {out_path}."
+            )
         prompt_result = build_prompt_summary(trace_result, is_warmup=is_warmup)
         results["prompt_results"].append(prompt_result)
 
@@ -1027,6 +1327,7 @@ def run_benchmark(
 
     aggregate_bundle = aggregate_prompt_results(results["prompt_results"], exit_layers)
     results.update(aggregate_bundle)
+    results["status"] = "ok"
 
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1089,6 +1390,16 @@ def run_debug_trace(
     out_path.write_text(json.dumps(trace_result, indent=2))
 
     print(f"\nDebug trace written to {out_path}")
+    if trace_result.get("status") != "ok":
+        failure = trace_result["non_finite_failure"]
+        print(
+            "Non-finite failure: "
+            f"step={failure['step_index']} stage={failure['stage']}"
+        )
+        raise RuntimeError(
+            "Manual-reference path detected non-finite tensors. "
+            f"Diagnostic trace written to {out_path}."
+        )
     print(
         f"Manual-reference path: family={parts.family} "
         f"architecture={parts.architecture} exit_layers={exit_layers}"
