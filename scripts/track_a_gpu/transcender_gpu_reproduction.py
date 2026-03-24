@@ -1,40 +1,25 @@
 """
-GPU reproduction of Track A penultimate-layer frontier.
+GPU validation of the Track A penultimate-layer frontier.
 
-Purpose:
-  Test whether the penultimate-layer quality cliff observed on MLX
-  reproduces on a GPU runtime using HuggingFace Transformers.
+This script now treats the manual forward-pass path as the trustworthy
+reference path. The earlier HF implementation was risky for two reasons:
 
-  This is an external-validity experiment, not a speedup benchmark.
-  The primary question: is the frontier a model effect or a runtime effect?
+1. It relied on `output_hidden_states` capture semantics from Transformers,
+   which are model-implementation dependent and easy to misread.
+2. It reported `top1_agree` exact match against full depth even though the
+   composed token falls back to the full-depth token on disagreement. That is
+   useful as a composition diagnostic, but it is not a valid frontier metric.
 
-Target model:
-  Qwen3-30B-A3B (Qwen/Qwen3-30B-A3B) — 48 layers, 128 experts, top-8.
-  This model was already tested in Track A on MLX (L46 top1_agree: 0.837 EM).
+The corrected path below:
 
-Method:
-  1. Run full-depth greedy decode (48 tokens) as baseline.
-  2. Extract penultimate-layer (L46) hidden states, project through LM head
-     to get early logits, and apply top1_agree composition.
-  3. Extract L45 hidden states similarly (one-layer-earlier cliff test).
-  4. Compare: does the quality cliff reproduce?
+- runs prefill once
+- decodes step-by-step under full-depth shared context
+- explicitly runs `embed_tokens -> layers -> final norm -> lm_head`
+- extracts candidate logits for requested intermediate layers
+- records raw exit tokens, composed tokens, and agreement statistics
 
-Runtime:
-  HuggingFace Transformers on GPU. Not vLLM or TRT-LLM.
-  This is a scoped first step — clearly labeled as such.
-
-Usage:
-  python transcender_gpu_reproduction.py \
-    --model Qwen/Qwen3-30B-A3B \
-    --quantize 4bit \
-    --prompt-limit 3 \
-    --max-new-tokens 16 \
-    --output artifacts/track_a_gpu/qwen3_gpu_smoke.json
-
-  python transcender_gpu_reproduction.py \
-    --model Qwen/Qwen3-30B-A3B \
-    --quantize 4bit \
-    --output artifacts/track_a_gpu/qwen3_gpu_reproduction.json
+This is a validation/debugging tool for GPU external-validity work. It is not
+yet a serving benchmark and it is not a claim of exact MLX parity.
 """
 
 from __future__ import annotations
@@ -47,9 +32,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
+from transformers.cache_utils import DynamicCache
+from transformers.masking_utils import create_causal_mask, create_sliding_window_causal_mask
 
 # ---------------------------------------------------------------------------
-# Prompts — same suite as MLX Track A.  P1 is warmup (excluded from scoring).
+# Prompts — same suite as MLX Track A. P1 is warmup (excluded from scoring).
 # ---------------------------------------------------------------------------
 PROMPTS = [
     # --- Original expository (P1-P5) ---
@@ -135,25 +122,27 @@ DEFAULT_MAX_NEW_TOKENS = 48
 DEFAULT_BLEND_ALPHA = 0.10
 WARMUP_INDEX = 0  # P1
 
+MLX_REFERENCE = {
+    "L46": {"exact_match": 0.837, "perfect": 36, "total": 63},
+    "L45": {"exact_match": 0.463, "perfect": 6, "total": 63},
+}
+
 
 @dataclass
-class LayerResult:
-    """Result of evaluating one prompt at one exit layer."""
-    prompt_id: str
-    prompt_text: str
-    exit_layer: int
-    full_depth_tokens: List[int]
-    exit_tokens: List[int]
-    composed_tokens: List[int]
-    exact_match_rate: float
-    prefix_match_tokens: int
-    first_divergence_position: int
-    top1_agreement_rate: float
-    generation_time_s: float
+class ModelParts:
+    backbone: Any
+    embed_tokens: torch.nn.Module
+    layers: Any
+    final_norm: torch.nn.Module
+    rotary_emb: torch.nn.Module
+    lm_head: torch.nn.Module
+    config: Any
+    device: torch.device
+    num_layers: int
 
 
 def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
-    """Load model with optional quantization."""
+    """Load the causal LM without relying on hidden-state capture side effects."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -163,11 +152,11 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
     load_kwargs: Dict[str, Any] = {
         "trust_remote_code": True,
         "torch_dtype": torch.float16,
-        "output_hidden_states": True,
     }
 
     if quantize == "4bit":
         from transformers import BitsAndBytesConfig
+
         load_kwargs["quantization_config"] = BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=torch.float16,
@@ -176,6 +165,7 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
         load_kwargs["device_map"] = "auto"
     elif quantize == "8bit":
         from transformers import BitsAndBytesConfig
+
         load_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
         load_kwargs["device_map"] = "auto"
     else:
@@ -183,28 +173,19 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
 
     model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
     model.eval()
-
     return model, tokenizer
 
 
-def build_messages(
-    prompt_text: str,
-    system_prompt: str,
-) -> List[Dict[str, str]]:
+def build_messages(prompt_text: str, system_prompt: str) -> List[Dict[str, str]]:
     return [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt_text},
     ]
 
 
-def render_prompt(
-    tokenizer,
-    prompt_text: str,
-    system_prompt: str,
-) -> torch.Tensor:
-    """Render a chat prompt in the closest available tokenizer-native form."""
+def render_prompt(tokenizer, prompt_text: str, system_prompt: str) -> torch.Tensor:
+    """Render a chat prompt using the tokenizer-native chat template when available."""
     messages = build_messages(prompt_text=prompt_text, system_prompt=system_prompt)
-
     if hasattr(tokenizer, "apply_chat_template"):
         try:
             rendered = tokenizer.apply_chat_template(
@@ -220,94 +201,13 @@ def render_prompt(
                 add_generation_prompt=True,
             )
         return tokenizer(rendered, return_tensors="pt")["input_ids"]
-
     return tokenizer(
         f"{system_prompt}\n\n{prompt_text}",
         return_tensors="pt",
     )["input_ids"]
 
 
-def get_lm_head(model) -> torch.nn.Module:
-    """Extract the language model head for projecting hidden states to logits."""
-    if hasattr(model, "lm_head"):
-        return model.lm_head
-    raise AttributeError(
-        f"Cannot find lm_head on {type(model).__name__}. "
-        "Manual adaptation needed for this model architecture."
-    )
-
-
-def greedy_decode_with_hidden_states(
-    model,
-    tokenizer,
-    prompt_text: str,
-    system_prompt: str,
-    max_new_tokens: int,
-    exit_layers: List[int],
-) -> Dict[str, Any]:
-    """
-    Greedy-decode max_new_tokens, collecting hidden states at specified layers.
-
-    Returns:
-        {
-            "full_depth_ids": List[int],
-            "hidden_states_per_layer": {layer_idx: List[Tensor]},
-            "full_logits": List[Tensor],
-            "elapsed_s": float,
-        }
-    """
-    prompt_ids = render_prompt(
-        tokenizer=tokenizer,
-        prompt_text=prompt_text,
-        system_prompt=system_prompt,
-    )
-
-    device = next(model.parameters()).device
-    input_ids = prompt_ids.to(device)
-
-    generated_ids: List[int] = []
-    hidden_per_layer: Dict[int, List[torch.Tensor]] = {l: [] for l in exit_layers}
-    full_logits_list: List[torch.Tensor] = []
-
-    t0 = time.perf_counter()
-
-    with torch.no_grad():
-        for step in range(max_new_tokens):
-            outputs = model(input_ids, output_hidden_states=True)
-            logits = outputs.logits[:, -1, :]  # (1, vocab)
-            full_logits_list.append(logits.cpu())
-
-            # Collect hidden states at exit layers
-            # outputs.hidden_states is a tuple of (n_layers+1) tensors
-            # Index 0 = embedding, index i = output of layer i-1
-            for layer_idx in exit_layers:
-                # hidden_states[layer_idx + 1] = output of layer layer_idx
-                hs = outputs.hidden_states[layer_idx + 1][:, -1, :]  # (1, hidden)
-                hidden_per_layer[layer_idx].append(hs.cpu())
-
-            # Greedy select
-            next_token = logits.argmax(dim=-1)  # (1,)
-            generated_ids.append(next_token.item())
-
-            # Append for next step
-            input_ids = torch.cat([input_ids, next_token.unsqueeze(0)], dim=1)
-
-            # Stop on EOS
-            if next_token.item() == tokenizer.eos_token_id:
-                break
-
-    elapsed = time.perf_counter() - t0
-
-    return {
-        "full_depth_ids": generated_ids,
-        "hidden_states_per_layer": hidden_per_layer,
-        "full_logits": full_logits_list,
-        "elapsed_s": elapsed,
-    }
-
-
 def select_prompts(prompt_offset: int = 0, prompt_limit: Optional[int] = None):
-    """Return [(prompt_index, prompt_text), ...] for the requested slice."""
     if prompt_offset < 0:
         raise ValueError("--prompt-offset must be >= 0")
     if prompt_limit is not None and prompt_limit <= 0:
@@ -322,82 +222,396 @@ def select_prompts(prompt_offset: int = 0, prompt_limit: Optional[int] = None):
         raise ValueError(
             f"No prompts selected with offset={prompt_offset}, limit={prompt_limit}"
         )
-
     return list(enumerate(selected, start=prompt_offset))
 
 
-def compose_top1_agree(
-    full_logits: List[torch.Tensor],
-    exit_logits: List[torch.Tensor],
-    blend_alpha: float = 0.10,
-) -> List[int]:
+def resolve_prompt_index(prompt_id: str) -> int:
+    if not prompt_id.startswith("P"):
+        raise ValueError(f"Prompt id must look like P2, got {prompt_id!r}")
+    index = int(prompt_id[1:]) - 1
+    if index < 0 or index >= len(PROMPTS):
+        raise ValueError(f"Prompt id out of range: {prompt_id}")
+    return index
+
+
+def token_to_text(tokenizer, token_id: int) -> str:
+    return tokenizer.decode([int(token_id)], clean_up_tokenization_spaces=False)
+
+
+def module_device(module: torch.nn.Module) -> torch.device:
+    for param in module.parameters():
+        return param.device
+    for buffer in module.buffers():
+        return buffer.device
+    raise ValueError(f"Cannot infer device for module {type(module).__name__}")
+
+
+def get_model_parts(model) -> ModelParts:
+    backbone = getattr(model, "model", None)
+    if backbone is None:
+        raise AttributeError(
+            f"{type(model).__name__} has no `.model` backbone. "
+            "Manual adaptation is required for this architecture."
+        )
+
+    required = ["embed_tokens", "layers", "norm", "rotary_emb"]
+    missing = [name for name in required if not hasattr(backbone, name)]
+    if missing:
+        raise AttributeError(
+            f"Backbone {type(backbone).__name__} is missing required attrs: {missing}"
+        )
+    if not hasattr(model, "lm_head"):
+        raise AttributeError(f"{type(model).__name__} has no `lm_head`.")
+
+    # The trustworthy reference path assumes one GPU with the whole model on it.
+    # If the model is sharded, this script should fail loudly rather than silently
+    # measuring a partly-wrong path.
+    devices = {
+        module_device(backbone.embed_tokens),
+        module_device(backbone.norm),
+        module_device(model.lm_head),
+        module_device(backbone.layers[0]),
+        module_device(backbone.layers[-1]),
+    }
+    if len(devices) != 1:
+        raise RuntimeError(
+            "Manual debug path expects the model to reside on one device. "
+            f"Observed devices: {sorted(str(d) for d in devices)}"
+        )
+
+    return ModelParts(
+        backbone=backbone,
+        embed_tokens=backbone.embed_tokens,
+        layers=backbone.layers,
+        final_norm=backbone.norm,
+        rotary_emb=backbone.rotary_emb,
+        lm_head=model.lm_head,
+        config=backbone.config,
+        device=devices.pop(),
+        num_layers=len(backbone.layers),
+    )
+
+
+def validate_exit_layers(exit_layers: List[int], num_layers: int) -> None:
+    bad = [layer for layer in exit_layers if layer < 0 or layer >= num_layers]
+    if bad:
+        raise ValueError(
+            f"Exit layers {bad} out of range for model with {num_layers} layers"
+        )
+
+
+def project_hidden_to_logits(parts: ModelParts, hidden_state: torch.Tensor) -> torch.Tensor:
     """
-    Apply top1_agree composition: blend logits only when shallow and deep
-    agree on top-1 token identity; otherwise use full-depth logits.
-
-    Returns the composed token sequence.
+    Project a decoder-layer hidden state through the same final norm + lm_head
+    used by the model head. The earlier script skipped this norm step, which is
+    not faithful for Qwen-family decoders.
     """
-    composed_ids: List[int] = []
-    n = min(len(full_logits), len(exit_logits))
-
-    for i in range(n):
-        full_l = full_logits[i].float()
-        exit_l = exit_logits[i].float()
-
-        full_top1 = full_l.argmax(dim=-1).item()
-        exit_top1 = exit_l.argmax(dim=-1).item()
-
-        if full_top1 == exit_top1:
-            # Blend
-            blended = (1 - blend_alpha) * full_l + blend_alpha * exit_l
-            composed_ids.append(blended.argmax(dim=-1).item())
-        else:
-            # Fall back to full depth
-            composed_ids.append(full_top1)
-
-    return composed_ids
+    hidden_state = hidden_state.to(parts.device)
+    normed = parts.final_norm(hidden_state)
+    logits = parts.lm_head(normed)
+    return logits[:, -1, :]
 
 
-def compute_metrics(
-    full_ids: List[int],
-    composed_ids: List[int],
-    full_logits: List[torch.Tensor],
-    exit_logits: List[torch.Tensor],
-) -> Dict[str, Any]:
-    """Compute exact match, prefix match, divergence, and agreement metrics."""
-    n = min(len(full_ids), len(composed_ids))
+def compose_top1_agree_logits(
+    full_logits: torch.Tensor,
+    exit_logits: torch.Tensor,
+    blend_alpha: float,
+) -> tuple[torch.Tensor, bool]:
+    full_logits = full_logits.float()
+    exit_logits = exit_logits.float()
+    full_top1 = int(full_logits.argmax(dim=-1).item())
+    exit_top1 = int(exit_logits.argmax(dim=-1).item())
+    agreed = full_top1 == exit_top1
+    if agreed:
+        return (1 - blend_alpha) * full_logits + blend_alpha * exit_logits, True
+    return full_logits, False
 
-    # Exact match rate
-    matches = sum(1 for i in range(n) if full_ids[i] == composed_ids[i])
-    exact_match_rate = matches / n if n > 0 else 0.0
 
-    # Prefix match
+def sequence_metrics(reference_ids: List[int], candidate_ids: List[int]) -> Dict[str, Any]:
+    n = min(len(reference_ids), len(candidate_ids))
+    matches = sum(1 for i in range(n) if reference_ids[i] == candidate_ids[i])
+    exact = matches / n if n > 0 else 0.0
+
     prefix = 0
     for i in range(n):
-        if full_ids[i] == composed_ids[i]:
+        if reference_ids[i] == candidate_ids[i]:
             prefix += 1
         else:
             break
-    else:
-        prefix = n
-
-    # First divergence
     first_div = prefix + 1 if prefix < n else n + 1
 
-    # Top-1 agreement between full and exit logits
-    agreements = 0
-    m = min(len(full_logits), len(exit_logits))
-    for i in range(m):
-        if full_logits[i].argmax(dim=-1).item() == exit_logits[i].argmax(dim=-1).item():
-            agreements += 1
-    agreement_rate = agreements / m if m > 0 else 0.0
-
     return {
-        "exact_match_rate": exact_match_rate,
+        "exact_match_rate": exact,
         "prefix_match_tokens": prefix,
         "first_divergence_position": first_div,
-        "top1_agreement_rate": agreement_rate,
         "total_tokens": n,
+        "perfect_match": prefix == n and len(reference_ids) == len(candidate_ids),
+    }
+
+
+def manual_forward_step(
+    parts: ModelParts,
+    input_ids: torch.Tensor,
+    cache: DynamicCache,
+    capture_layers: List[int],
+) -> Dict[str, Any]:
+    """
+    Explicit one-step forward pass through embeddings, decoder layers, final
+    norm, and lm_head.
+
+    This does not rely on `output_hidden_states` or `generate()` behavior.
+    """
+    input_ids = input_ids.to(parts.device)
+    inputs_embeds = parts.embed_tokens(input_ids)
+
+    past_seen_tokens = cache.get_seq_length() if cache is not None else 0
+    cache_position = torch.arange(
+        past_seen_tokens,
+        past_seen_tokens + inputs_embeds.shape[1],
+        device=parts.device,
+    )
+    position_ids = cache_position.unsqueeze(0)
+
+    mask_fn = (
+        create_causal_mask
+        if parts.config.sliding_window is None
+        else create_sliding_window_causal_mask
+    )
+    causal_mask = mask_fn(
+        config=parts.config,
+        inputs_embeds=inputs_embeds,
+        attention_mask=None,
+        cache_position=cache_position,
+        past_key_values=cache,
+        position_ids=position_ids,
+    )
+    position_embeddings = parts.rotary_emb(inputs_embeds, position_ids=position_ids)
+
+    hidden_states = inputs_embeds
+    captured_hidden: Dict[int, torch.Tensor] = {}
+
+    for layer_idx, decoder_layer in enumerate(parts.layers[: parts.num_layers]):
+        hidden_states = decoder_layer(
+            hidden_states,
+            attention_mask=causal_mask,
+            position_ids=position_ids,
+            past_key_values=cache,
+            use_cache=True,
+            cache_position=cache_position,
+            position_embeddings=position_embeddings,
+        )
+        if layer_idx in capture_layers:
+            captured_hidden[layer_idx] = hidden_states[:, -1:, :].detach()
+
+    full_hidden = hidden_states[:, -1:, :].detach()
+    full_logits = project_hidden_to_logits(parts, full_hidden)
+    exit_logits = {
+        layer_idx: project_hidden_to_logits(parts, hidden)
+        for layer_idx, hidden in captured_hidden.items()
+    }
+
+    return {
+        "full_logits": full_logits.detach().cpu(),
+        "exit_logits": {k: v.detach().cpu() for k, v in exit_logits.items()},
+    }
+
+
+def run_shared_context_decode(
+    parts: ModelParts,
+    tokenizer,
+    prompt_id: str,
+    prompt_text: str,
+    exit_layers: List[int],
+    max_new_tokens: int,
+    blend_alpha: float,
+    include_trace: bool,
+) -> Dict[str, Any]:
+    """
+    Manual token-by-token decode under shared full-depth context.
+
+    The full-depth token is used to advance the cache at every step. This makes
+    the trace diagnostically trustworthy for comparing candidate logits from
+    L45/L46 against the full-depth path without branching the generation tree.
+    """
+    prompt_ids = render_prompt(
+        tokenizer=tokenizer,
+        prompt_text=prompt_text,
+        system_prompt=SYSTEM_PROMPT,
+    ).to(parts.device)
+
+    cache = DynamicCache(config=parts.config)
+    full_ids: List[int] = []
+    exit_ids: Dict[int, List[int]] = {layer: [] for layer in exit_layers}
+    composed_ids: Dict[int, List[int]] = {layer: [] for layer in exit_layers}
+    agreement_counts: Dict[int, int] = {layer: 0 for layer in exit_layers}
+    trace_steps: List[Dict[str, Any]] = []
+
+    t0 = time.perf_counter()
+    input_ids = prompt_ids
+
+    with torch.no_grad():
+        for step_index in range(max_new_tokens):
+            step_out = manual_forward_step(
+                parts=parts,
+                input_ids=input_ids,
+                cache=cache,
+                capture_layers=exit_layers,
+            )
+
+            full_logits = step_out["full_logits"]
+            full_token = int(full_logits.argmax(dim=-1).item())
+            full_ids.append(full_token)
+
+            step_record: Dict[str, Any] = {
+                "step_index": step_index,
+                "full_depth": {
+                    "token_id": full_token,
+                    "token_text": token_to_text(tokenizer, full_token),
+                },
+                "layers": {},
+            }
+
+            for layer_idx in exit_layers:
+                layer_label = f"L{layer_idx}"
+                layer_logits = step_out["exit_logits"][layer_idx]
+                exit_token = int(layer_logits.argmax(dim=-1).item())
+                exit_ids[layer_idx].append(exit_token)
+
+                composed_logits, agreed = compose_top1_agree_logits(
+                    full_logits=full_logits,
+                    exit_logits=layer_logits,
+                    blend_alpha=blend_alpha,
+                )
+                composed_token = int(composed_logits.argmax(dim=-1).item())
+                composed_ids[layer_idx].append(composed_token)
+
+                agreement_counts[layer_idx] += int(agreed)
+                raw_metrics = sequence_metrics(full_ids, exit_ids[layer_idx])
+                composed_metrics = sequence_metrics(full_ids, composed_ids[layer_idx])
+
+                step_record["layers"][layer_label] = {
+                    "raw_exit": {
+                        "token_id": exit_token,
+                        "token_text": token_to_text(tokenizer, exit_token),
+                        "matches_full_depth": exit_token == full_token,
+                        "first_divergence_position_so_far": raw_metrics["first_divergence_position"],
+                    },
+                    "composed_top1_agree": {
+                        "token_id": composed_token,
+                        "token_text": token_to_text(tokenizer, composed_token),
+                        "matches_full_depth": composed_token == full_token,
+                        "first_divergence_position_so_far": composed_metrics["first_divergence_position"],
+                    },
+                    "top1_agree": {
+                        "matches_full_depth_top1": agreed,
+                        "agreement_rate_so_far": round(
+                            agreement_counts[layer_idx] / len(full_ids), 6
+                        ),
+                    },
+                }
+
+            if include_trace:
+                trace_steps.append(step_record)
+
+            input_ids = torch.tensor([[full_token]], device=parts.device)
+            if tokenizer.eos_token_id is not None and full_token == tokenizer.eos_token_id:
+                break
+
+    elapsed = time.perf_counter() - t0
+    generation_tps = len(full_ids) / elapsed if elapsed > 0 else 0.0
+
+    layer_summaries: Dict[str, Any] = {}
+    for layer_idx in exit_layers:
+        layer_label = f"L{layer_idx}"
+        raw_metrics = sequence_metrics(full_ids, exit_ids[layer_idx])
+        composed_metrics = sequence_metrics(full_ids, composed_ids[layer_idx])
+        layer_summaries[layer_label] = {
+            "exit_layer": layer_idx,
+            "raw_exit_exact_match_rate": round(raw_metrics["exact_match_rate"], 6),
+            "raw_exit_prefix_match_tokens": raw_metrics["prefix_match_tokens"],
+            "raw_exit_first_divergence_position": raw_metrics["first_divergence_position"],
+            "raw_exit_perfect_match": raw_metrics["perfect_match"],
+            "composed_exact_match_rate": round(composed_metrics["exact_match_rate"], 6),
+            "composed_prefix_match_tokens": composed_metrics["prefix_match_tokens"],
+            "composed_first_divergence_position": composed_metrics["first_divergence_position"],
+            "composed_perfect_match": composed_metrics["perfect_match"],
+            "top1_agreement_rate": round(agreement_counts[layer_idx] / len(full_ids), 6),
+        }
+
+    result: Dict[str, Any] = {
+        "prompt_id": prompt_id,
+        "prompt_text": prompt_text,
+        "shared_context_mode": (
+            "full-depth token chosen at each step is used to advance decode state; "
+            "L45/L46 tokens are candidate comparisons under the same context."
+        ),
+        "max_new_tokens": max_new_tokens,
+        "blend_alpha": blend_alpha,
+        "full_depth_ids": full_ids,
+        "full_depth_text": tokenizer.decode(full_ids, skip_special_tokens=False),
+        "generation_time_s": round(elapsed, 4),
+        "generation_tps": round(generation_tps, 2),
+        "layer_summaries": layer_summaries,
+    }
+    if include_trace:
+        result["trace"] = trace_steps
+    return result
+
+
+def build_prompt_summary(trace_result: Dict[str, Any], is_warmup: bool) -> Dict[str, Any]:
+    prompt_result = {
+        "prompt_id": trace_result["prompt_id"],
+        "prompt_text": trace_result["prompt_text"],
+        "is_warmup": is_warmup,
+        "full_depth_tokens": len(trace_result["full_depth_ids"]),
+        "generation_time_s": trace_result["generation_time_s"],
+        "generation_tps": trace_result["generation_tps"],
+        "shared_context_mode": trace_result["shared_context_mode"],
+        "layer_results": trace_result["layer_summaries"],
+    }
+    return prompt_result
+
+
+def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: List[int]) -> Dict[str, Any]:
+    scored = [row for row in prompt_results if not row["is_warmup"]]
+    aggregate_rows = scored if scored else prompt_results
+    scope = (
+        "selected prompts excluding warmup"
+        if scored
+        else "selected prompts (warmup included because no scored prompts remain)"
+    )
+
+    aggregates: Dict[str, Any] = {}
+    for layer_idx in exit_layers:
+        layer_label = f"L{layer_idx}"
+        raw_ems = [r["layer_results"][layer_label]["raw_exit_exact_match_rate"] for r in aggregate_rows]
+        raw_perfect = sum(1 for r in aggregate_rows if r["layer_results"][layer_label]["raw_exit_perfect_match"])
+        comp_ems = [r["layer_results"][layer_label]["composed_exact_match_rate"] for r in aggregate_rows]
+        comp_perfect = sum(1 for r in aggregate_rows if r["layer_results"][layer_label]["composed_perfect_match"])
+        agreements = [r["layer_results"][layer_label]["top1_agreement_rate"] for r in aggregate_rows]
+
+        aggregates[layer_label] = {
+            "exit_layer": layer_idx,
+            "raw_exit_avg_exact_match": round(sum(raw_ems) / len(raw_ems), 6),
+            "raw_exit_perfect_count": raw_perfect,
+            "raw_exit_total_scored": len(aggregate_rows),
+            "composed_avg_exact_match": round(sum(comp_ems) / len(comp_ems), 6),
+            "composed_perfect_count": comp_perfect,
+            "composed_total_scored": len(aggregate_rows),
+            "avg_top1_agreement_rate": round(sum(agreements) / len(agreements), 6),
+        }
+
+    full_tps = [r["generation_tps"] for r in aggregate_rows]
+    aggregates["full_depth"] = {
+        "avg_exact_match": 1.0,
+        "perfect_count": len(aggregate_rows),
+        "total_scored": len(aggregate_rows),
+        "avg_generation_tps": round(sum(full_tps) / len(full_tps), 2),
+    }
+
+    return {
+        "aggregates_scope": scope,
+        "aggregates": aggregates,
     }
 
 
@@ -407,225 +621,220 @@ def run_benchmark(
     exit_layers: List[int],
     output_path: str,
     model_name: str,
-    num_layers: int,
     prompt_offset: int = 0,
     prompt_limit: Optional[int] = None,
     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     blend_alpha: float = DEFAULT_BLEND_ALPHA,
 ):
-    """Run the full benchmark and write results."""
-    lm_head = get_lm_head(model)
-    selected_prompts = select_prompts(
-        prompt_offset=prompt_offset,
-        prompt_limit=prompt_limit,
-    )
-    results = {
-        "experiment": "transcender_gpu_reproduction",
+    parts = get_model_parts(model)
+    validate_exit_layers(exit_layers, parts.num_layers)
+    selected_prompts = select_prompts(prompt_offset=prompt_offset, prompt_limit=prompt_limit)
+
+    results: Dict[str, Any] = {
+        "experiment": "transcender_gpu_reproduction_manual_reference",
         "model": model_name,
-        "num_layers": num_layers,
+        "num_layers": parts.num_layers,
         "exit_layers_tested": exit_layers,
-        "runtime": "huggingface_transformers_gpu",
+        "runtime": "huggingface_transformers_gpu_manual_forward",
         "max_new_tokens": max_new_tokens,
         "blend_alpha": blend_alpha,
         "warmup_prompt": "P1",
         "prompt_offset": prompt_offset,
         "prompt_limit": len(selected_prompts),
         "notes": (
-            "GPU reproduction of MLX Track A. "
-            "Uses output_hidden_states to extract intermediate logits. "
-            "This is a HuggingFace Transformers path, not vLLM/TRT-LLM."
+            "Trustworthy reference path. Manual prefill + step decode through "
+            "embed_tokens, decoder layers, final norm, and lm_head. Raw exit "
+            "tokens and composed tokens are reported separately."
         ),
         "prompt_results": [],
-        "aggregates": {},
+        "mlx_reference": MLX_REFERENCE,
     }
 
     for prompt_index, prompt_text in selected_prompts:
         prompt_id = f"P{prompt_index + 1}"
         is_warmup = prompt_index == WARMUP_INDEX
-
-        print(f"\n{'[WARMUP] ' if is_warmup else ''}Processing {prompt_id}: "
-              f"{prompt_text[:60]}...")
-
-        decode_result = greedy_decode_with_hidden_states(
-            model=model,
-            tokenizer=tokenizer,
-            prompt_text=prompt_text,
-            system_prompt=SYSTEM_PROMPT,
-            max_new_tokens=max_new_tokens,
-            exit_layers=exit_layers,
+        print(
+            f"\n{'[WARMUP] ' if is_warmup else ''}Processing {prompt_id}: "
+            f"{prompt_text[:60]}..."
         )
 
-        full_ids = decode_result["full_depth_ids"]
-        elapsed = decode_result["elapsed_s"]
-        tps = len(full_ids) / elapsed if elapsed > 0 else 0.0
-
-        prompt_result: Dict[str, Any] = {
-            "prompt_id": prompt_id,
-            "prompt_text": prompt_text,
-            "is_warmup": is_warmup,
-            "full_depth_tokens": len(full_ids),
-            "generation_time_s": round(elapsed, 4),
-            "generation_tps": round(tps, 2),
-            "layer_results": {},
-        }
-
-        # For each exit layer, project hidden states through LM head
-        for layer_idx in exit_layers:
-            hidden_states = decode_result["hidden_states_per_layer"][layer_idx]
-            exit_logits = []
-
-            with torch.no_grad():
-                for hs in hidden_states:
-                    # Project hidden state through LM head to get logits
-                    logit = lm_head(hs.to(next(lm_head.parameters()).device))
-                    exit_logits.append(logit.cpu())
-
-            # Compose with top1_agree
-            composed_ids = compose_top1_agree(
-                decode_result["full_logits"],
-                exit_logits,
-                blend_alpha=blend_alpha,
-            )
-
-            metrics = compute_metrics(
-                full_ids, composed_ids,
-                decode_result["full_logits"], exit_logits,
-            )
-
-            layer_label = f"L{layer_idx}"
-            prompt_result["layer_results"][layer_label] = {
-                "exit_layer": layer_idx,
-                "exact_match_rate": round(metrics["exact_match_rate"], 6),
-                "prefix_match_tokens": metrics["prefix_match_tokens"],
-                "first_divergence_position": metrics["first_divergence_position"],
-                "top1_agreement_rate": round(metrics["top1_agreement_rate"], 6),
-            }
-
-            status = "PASS" if metrics["exact_match_rate"] == 1.0 else "FAIL"
-            print(f"  {layer_label} top1_agree: EM={metrics['exact_match_rate']:.3f} "
-                  f"prefix={metrics['prefix_match_tokens']} "
-                  f"agree={metrics['top1_agreement_rate']:.3f} [{status}]")
-
+        trace_result = run_shared_context_decode(
+            parts=parts,
+            tokenizer=tokenizer,
+            prompt_id=prompt_id,
+            prompt_text=prompt_text,
+            exit_layers=exit_layers,
+            max_new_tokens=max_new_tokens,
+            blend_alpha=blend_alpha,
+            include_trace=False,
+        )
+        prompt_result = build_prompt_summary(trace_result, is_warmup=is_warmup)
         results["prompt_results"].append(prompt_result)
 
-    # ---- Compute aggregates (excluding warmup) ----
-    scored = [r for r in results["prompt_results"] if not r["is_warmup"]]
-    aggregate_rows = scored if scored else results["prompt_results"]
-    warmup_excluded = bool(scored)
-    results["aggregates_scope"] = (
-        "selected prompts excluding warmup"
-        if warmup_excluded
-        else "selected prompts (warmup included because no scored prompts remain)"
-    )
+        for layer_idx in exit_layers:
+            layer_label = f"L{layer_idx}"
+            layer_result = prompt_result["layer_results"][layer_label]
+            print(
+                f"  {layer_label}: raw_exit_EM={layer_result['raw_exit_exact_match_rate']:.3f} "
+                f"composed_EM={layer_result['composed_exact_match_rate']:.3f} "
+                f"agree={layer_result['top1_agreement_rate']:.3f}"
+            )
 
-    for layer_idx in exit_layers:
-        layer_label = f"L{layer_idx}"
-        ems = [r["layer_results"][layer_label]["exact_match_rate"] for r in aggregate_rows]
-        agreements = [r["layer_results"][layer_label]["top1_agreement_rate"] for r in aggregate_rows]
-        prefixes = [r["layer_results"][layer_label]["prefix_match_tokens"] for r in aggregate_rows]
-        perfect = sum(1 for e in ems if e == 1.0)
+    aggregate_bundle = aggregate_prompt_results(results["prompt_results"], exit_layers)
+    results.update(aggregate_bundle)
 
-        results["aggregates"][f"{layer_label}_top1_agree"] = {
-            "exit_layer": layer_idx,
-            "avg_exact_match": round(sum(ems) / len(ems), 6),
-            "perfect_count": perfect,
-            "total_scored": len(aggregate_rows),
-            "avg_top1_agreement": round(sum(agreements) / len(agreements), 6),
-            "avg_prefix_match": round(sum(prefixes) / len(prefixes), 2),
-        }
-
-    # Full-depth reference (trivially 1.0)
-    full_tps = [r["generation_tps"] for r in aggregate_rows]
-    results["aggregates"]["full_depth"] = {
-        "exit_layer": num_layers - 1,
-        "avg_exact_match": 1.0,
-        "perfect_count": len(aggregate_rows),
-        "total_scored": len(aggregate_rows),
-        "avg_generation_tps": round(sum(full_tps) / len(full_tps), 2),
-    }
-
-    # ---- MLX comparison reference ----
-    results["mlx_reference"] = {
-        "L46_top1_agree": {"exact_match": 0.837, "perfect": 36, "total": 63},
-        "L45_top1_agree": {"exact_match": 0.463, "perfect": 6, "total": 63},
-        "note": "MLX Track A results on Qwen3-30B-A3B for direct comparison.",
-    }
-
-    # ---- Write output ----
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_path, "w") as f:
-        json.dump(results, f, indent=2)
+    out_path.write_text(json.dumps(results, indent=2))
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Results written to {out_path}")
-    print(f"\nAggregates ({results['aggregates_scope']}, N={len(aggregate_rows)}):")
-    for key, agg in results["aggregates"].items():
-        if key == "full_depth":
-            print(f"  Full depth: EM=1.000 (baseline)")
-        else:
-            print(f"  {key}: EM={agg['avg_exact_match']:.3f} "
-                  f"({agg['perfect_count']}/{agg['total_scored']} perfect) "
-                  f"agree={agg['avg_top1_agreement']:.3f}")
+    print(f"Aggregates ({results['aggregates_scope']}):")
+    for layer_idx in exit_layers:
+        layer_label = f"L{layer_idx}"
+        agg = results["aggregates"][layer_label]
+        print(
+            f"  {layer_label}: raw_exit_EM={agg['raw_exit_avg_exact_match']:.3f} "
+            f"({agg['raw_exit_perfect_count']}/{agg['raw_exit_total_scored']} perfect), "
+            f"composed_EM={agg['composed_avg_exact_match']:.3f} "
+            f"({agg['composed_perfect_count']}/{agg['composed_total_scored']} perfect), "
+            f"agree={agg['avg_top1_agreement_rate']:.3f}"
+        )
+    print(f"{'=' * 60}")
 
-    print(f"\nMLX reference (for comparison):")
-    print(f"  L46 top1_agree: EM=0.837 (36/63 perfect)")
-    print(f"  L45 top1_agree: EM=0.463 (6/63 perfect)")
-    print(f"{'='*60}")
+
+def run_debug_trace(
+    model,
+    tokenizer,
+    prompt_id: str,
+    exit_layers: List[int],
+    output_path: str,
+    max_new_tokens: int,
+    blend_alpha: float,
+):
+    parts = get_model_parts(model)
+    validate_exit_layers(exit_layers, parts.num_layers)
+
+    prompt_index = resolve_prompt_index(prompt_id)
+    prompt_text = PROMPTS[prompt_index]
+    trace_result = run_shared_context_decode(
+        parts=parts,
+        tokenizer=tokenizer,
+        prompt_id=prompt_id,
+        prompt_text=prompt_text,
+        exit_layers=exit_layers,
+        max_new_tokens=max_new_tokens,
+        blend_alpha=blend_alpha,
+        include_trace=True,
+    )
+    trace_result["debug_mode"] = True
+    trace_result["mlx_reference"] = MLX_REFERENCE
+
+    out_path = Path(output_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(trace_result, indent=2))
+
+    print(f"\nDebug trace written to {out_path}")
+    for layer_idx in exit_layers:
+        layer_label = f"L{layer_idx}"
+        summary = trace_result["layer_summaries"][layer_label]
+        print(
+            f"  {layer_label}: raw_exit_EM={summary['raw_exit_exact_match_rate']:.3f} "
+            f"composed_EM={summary['composed_exact_match_rate']:.3f} "
+            f"agree={summary['top1_agreement_rate']:.3f} "
+            f"first_raw_div={summary['raw_exit_first_divergence_position']}"
+        )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="GPU reproduction of Transcender Track A penultimate-layer frontier"
+        description="GPU validation of the Track A penultimate-layer frontier"
     )
     parser.add_argument(
-        "--model", type=str, default="Qwen/Qwen3-30B-A3B",
-        help="HuggingFace model ID or local path"
+        "--model",
+        type=str,
+        default="Qwen/Qwen3-30B-A3B",
+        help="HuggingFace model ID or local path",
     )
     parser.add_argument(
-        "--quantize", type=str, choices=["none", "4bit", "8bit"], default="4bit",
-        help="Quantization mode (4bit recommended for 48GB GPU)"
+        "--quantize",
+        type=str,
+        choices=["none", "4bit", "8bit"],
+        default="4bit",
+        help="Quantization mode",
     )
     parser.add_argument(
-        "--exit-layers", type=int, nargs="+", default=[45, 46],
-        help="Exit layers to test (default: 45 46 for penultimate and penultimate-1)"
+        "--exit-layers",
+        type=int,
+        nargs="+",
+        default=[45, 46],
+        help="Exit layers to test",
     )
     parser.add_argument(
-        "--num-layers", type=int, default=48,
-        help="Total layers in model (default: 48 for Qwen3-30B-A3B)"
-    )
-    parser.add_argument(
-        "--output", type=str,
+        "--output",
+        type=str,
         default="artifacts/track_a_gpu/qwen3_gpu_reproduction.json",
-        help="Output JSON path"
+        help="Output JSON path",
     )
     parser.add_argument(
-        "--prompt-offset", type=int, default=0,
-        help="Zero-based prompt offset into the fixed suite (default: 0)"
+        "--prompt-offset",
+        type=int,
+        default=0,
+        help="Zero-based prompt offset into the fixed suite",
     )
     parser.add_argument(
-        "--prompt-limit", type=int, default=0,
-        help="Number of prompts to run. 0 means the full fixed suite."
+        "--prompt-limit",
+        type=int,
+        default=0,
+        help="Number of prompts to run. 0 means the full suite.",
     )
     parser.add_argument(
-        "--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS,
-        help=f"Decode length per prompt (default: {DEFAULT_MAX_NEW_TOKENS})"
+        "--prompt-id",
+        type=str,
+        help="Single prompt id like P2. Used by --debug-trace.",
     )
     parser.add_argument(
-        "--blend-alpha", type=float, default=DEFAULT_BLEND_ALPHA,
-        help=f"Blend weight for top1_agree composition (default: {DEFAULT_BLEND_ALPHA})"
+        "--max-new-tokens",
+        type=int,
+        default=DEFAULT_MAX_NEW_TOKENS,
+        help=f"Decode length per prompt (default: {DEFAULT_MAX_NEW_TOKENS})",
     )
     parser.add_argument(
-        "--device", type=str, default="cuda",
-        help="Device (default: cuda)"
+        "--blend-alpha",
+        type=float,
+        default=DEFAULT_BLEND_ALPHA,
+        help=f"Blend weight for top1_agree composition (default: {DEFAULT_BLEND_ALPHA})",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda",
+        help="Device for non-quantized loading (default: cuda)",
+    )
+    parser.add_argument(
+        "--debug-trace",
+        action="store_true",
+        help="Write a single-prompt per-token trace using the manual reference path.",
     )
     args = parser.parse_args()
 
     print(f"Loading {args.model} (quantize={args.quantize})...")
-    model, tokenizer = load_model_and_tokenizer(
-        args.model, args.quantize, args.device
-    )
-    print(f"Model loaded. Testing exit layers: {args.exit_layers}")
+    model, tokenizer = load_model_and_tokenizer(args.model, args.quantize, args.device)
+    print("Model loaded.")
+
+    if args.debug_trace:
+        if not args.prompt_id:
+            raise ValueError("--debug-trace requires --prompt-id, e.g. --prompt-id P2")
+        run_debug_trace(
+            model=model,
+            tokenizer=tokenizer,
+            prompt_id=args.prompt_id,
+            exit_layers=args.exit_layers,
+            output_path=args.output,
+            max_new_tokens=args.max_new_tokens,
+            blend_alpha=args.blend_alpha,
+        )
+        return
 
     run_benchmark(
         model=model,
@@ -633,7 +842,6 @@ def main():
         exit_layers=args.exit_layers,
         output_path=args.output,
         model_name=args.model,
-        num_layers=args.num_layers,
         prompt_offset=args.prompt_offset,
         prompt_limit=args.prompt_limit or None,
         max_new_tokens=args.max_new_tokens,

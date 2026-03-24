@@ -12,6 +12,25 @@ This is an external-validity test, not a serving benchmark:
 - first step: 3-prompt smoke test
 - second step: full N=63 run only if the smoke test is clean
 
+## Measurement Fix
+
+The earlier HF scaffold was not trustworthy enough to interpret frontier numbers.
+
+Two specific problems:
+
+- it relied on black-box hidden-state capture behavior instead of an explicit layer runner
+- it reported `top1_agree` exact match against full depth even though the composed token falls back to the full-depth token on disagreement, which can make the metric look artificially perfect
+
+The corrected script now uses a manual reference path:
+
+- prefill once
+- decode step-by-step
+- run `embed_tokens -> decoder layers -> final norm -> lm_head` explicitly
+- extract raw candidate logits for L45, L46, and full depth
+- report raw exit tokens and composed tokens separately
+
+Use the debug trace first. Do not trust aggregate benchmark output until the trace shows that L45/L46 candidate tokens truly differ from full depth on at least some steps.
+
 ## Provider Recommendation
 
 ### Pick: RunPod
@@ -44,7 +63,7 @@ RunPod is the best first-run choice for this exact experiment because it is the 
 Why this is enough:
 
 - Qwen3-30B-A3B in 4-bit should fit on a 48 GB card with comfortable headroom.
-- This script asks for `output_hidden_states=True` during token-by-token generation, so 24 GB is the wrong place to start.
+- The manual reference path keeps decoder caches and explicit per-layer projections live, so 24 GB is the wrong place to start.
 - A6000 is much cheaper than an A100 while still giving enough VRAM for a conservative first reproduction.
 
 Preferred tier:
@@ -136,16 +155,18 @@ PY
 ```bash
 python - <<'PY'
 import torch
-from scripts.track_a_gpu.transcender_gpu_reproduction import load_model_and_tokenizer, get_lm_head
+from scripts.track_a_gpu.transcender_gpu_reproduction import load_model_and_tokenizer, get_model_parts
 
 model, tokenizer = load_model_and_tokenizer(
     "Qwen/Qwen3-30B-A3B",
     "4bit",
     "cuda",
 )
+parts = get_model_parts(model)
 print("tokenizer_ok", tokenizer.__class__.__name__)
-print("layers", getattr(model.config, "num_hidden_layers", None))
-print("lm_head_ok", get_lm_head(model).__class__.__name__)
+print("layers", parts.num_layers)
+print("device", parts.device)
+print("lm_head_ok", parts.lm_head.__class__.__name__)
 print("cuda_available", torch.cuda.is_available())
 print("first_param_device", next(model.parameters()).device)
 PY
@@ -158,9 +179,9 @@ If that fails, stop there. Do not start the smoke test.
 This confirms:
 
 - model load works
-- hidden states are exposed
-- L46 and L45 projection paths run
-- full-depth and composed outputs are produced
+- the manual layer runner works
+- L46 and L45 candidate projection paths run
+- full-depth, raw L45/L46, and composed tokens are all emitted separately
 - JSON artifact writing works
 
 Command:
@@ -195,7 +216,35 @@ Expected operational result:
 
 - the script finishes
 - `qwen3_gpu_smoke.json` is written
-- output contains `L45_top1_agree`, `L46_top1_agree`, and `full_depth`
+- output contains raw-exit and composed summaries for `L45` and `L46`
+
+## Single-Prompt Debug Trace
+
+Run this before trusting any benchmark aggregate:
+
+```bash
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model Qwen/Qwen3-30B-A3B \
+  --quantize 4bit \
+  --debug-trace \
+  --prompt-id P2 \
+  --exit-layers 45 46 \
+  --max-new-tokens 16 \
+  --output artifacts/track_a_gpu/qwen3_trace_p2.json
+```
+
+What this gives you:
+
+- one prompt only
+- one JSON file
+- per-token records for:
+  - full depth
+  - raw L45 candidate
+  - raw L46 candidate
+  - composed `top1_agree` token
+- running first-divergence position and top-1 agreement rate for each layer
+
+Only after that trace looks sane should you move to the multi-prompt smoke test or full N=63 run.
 
 ## Full Run
 
@@ -253,11 +302,11 @@ This script is deliberately narrow.
 
 It does:
 
-- full-depth greedy decode
-- hidden-state extraction at L45 and L46
-- LM-head projection to early logits
-- `top1_agree` composition against full-depth logits
-- exact-match comparison to the full-depth baseline
+- full-depth shared-context decode
+- explicit layer-by-layer hidden-state extraction at L45 and L46
+- final-norm-plus-lm-head projection for intermediate candidates
+- raw exit-token reporting
+- separate `top1_agree` composition reporting
 
 It does not do:
 
