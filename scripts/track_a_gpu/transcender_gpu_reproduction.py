@@ -199,13 +199,6 @@ def load_model_and_tokenizer(model_name: str, quantize: str, device: str):
             ) from exc
         raise
 
-    if hasattr(model, "language_model") and not hasattr(model, "model"):
-        raise RuntimeError(
-            "Loaded model appears to be a multimodal Gemma 3 conditional-"
-            "generation checkpoint. The manual-reference path only supports "
-            "text causal-LM checkpoints such as google/gemma-3-4b-it."
-        )
-
     model.eval()
     return model, tokenizer
 
@@ -319,27 +312,45 @@ def infer_attention_mask_style(family: str) -> str:
     return "single_mask"
 
 
-def get_model_parts(model) -> ModelParts:
+def unwrap_manual_reference_backbone(model) -> tuple[torch.nn.Module, torch.nn.Module]:
+    """
+    Resolve the text decoder stack and lm_head used by the manual-reference path.
+
+    Gemma 3 text checkpoints can be exposed through a conditional-generation
+    wrapper whose `.model` contains a `.language_model` text backbone. That is
+    still a valid text-only decode path for this script as long as the language
+    model exposes the expected decoder-stack attributes.
+    """
     backbone = getattr(model, "model", None)
+    lm_head = getattr(model, "lm_head", None)
+
+    if backbone is None and hasattr(model, "language_model"):
+        backbone = model.language_model
+
     if backbone is None:
-        if hasattr(model, "language_model"):
-            raise RuntimeError(
-                "Loaded model appears to be a multimodal Gemma 3 conditional-"
-                "generation checkpoint. The manual-reference path only "
-                "supports text causal-LM checkpoints such as "
-                "google/gemma-3-4b-it."
-            )
         raise AttributeError(
             f"{type(model).__name__} has no `.model` backbone. "
             "Manual adaptation is required for this architecture."
         )
+    if lm_head is None:
+        raise AttributeError(f"{type(model).__name__} has no `lm_head`.")
 
     if hasattr(backbone, "language_model") and not hasattr(backbone, "embed_tokens"):
-        raise RuntimeError(
-            "Loaded backbone appears to be a multimodal Gemma 3 wrapper. "
-            "The manual-reference path only supports text causal-LM "
-            "checkpoints such as google/gemma-3-4b-it."
-        )
+        candidate = backbone.language_model
+        required = ["embed_tokens", "layers", "norm", "rotary_emb"]
+        missing = [name for name in required if not hasattr(candidate, name)]
+        if missing:
+            raise RuntimeError(
+                "Loaded Gemma 3 wrapper did not expose a usable text "
+                f"language model for manual decode; missing attrs: {missing}"
+            )
+        return candidate, lm_head
+
+    return backbone, lm_head
+
+
+def get_model_parts(model) -> ModelParts:
+    backbone, lm_head = unwrap_manual_reference_backbone(model)
 
     required = ["embed_tokens", "layers", "norm", "rotary_emb"]
     missing = [name for name in required if not hasattr(backbone, name)]
@@ -347,8 +358,6 @@ def get_model_parts(model) -> ModelParts:
         raise AttributeError(
             f"Backbone {type(backbone).__name__} is missing required attrs: {missing}"
         )
-    if not hasattr(model, "lm_head"):
-        raise AttributeError(f"{type(model).__name__} has no `lm_head`.")
 
     # The trustworthy reference path assumes one GPU with the whole model on it.
     # If the model is sharded, this script should fail loudly rather than silently
@@ -356,7 +365,7 @@ def get_model_parts(model) -> ModelParts:
     devices = {
         module_device(backbone.embed_tokens),
         module_device(backbone.norm),
-        module_device(model.lm_head),
+        module_device(lm_head),
         module_device(backbone.layers[0]),
         module_device(backbone.layers[-1]),
     }
@@ -374,7 +383,7 @@ def get_model_parts(model) -> ModelParts:
         layers=backbone.layers,
         final_norm=backbone.norm,
         rotary_emb=backbone.rotary_emb,
-        lm_head=model.lm_head,
+        lm_head=lm_head,
         config=backbone.config,
         device=devices.pop(),
         num_layers=len(backbone.layers),
