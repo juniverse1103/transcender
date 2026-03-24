@@ -246,6 +246,22 @@ What this gives you:
 
 Only after that trace looks sane should you move to the multi-prompt smoke test or full N=63 run.
 
+### Trace Analysis Helper
+
+After writing a trace JSON, summarize it with:
+
+```bash
+python scripts/track_a_gpu/analyze_debug_trace.py \
+  artifacts/track_a_gpu/qwen3_trace_p2.json
+```
+
+This reports:
+
+- first raw divergence position for L45 and L46
+- how many steps raw L45 and raw L46 differ from full depth
+- whether composed `top1_agree` simply falls back to full depth on raw disagreement
+- a concise verdict: `sane`, `inconclusive`, or `suspicious`
+
 ## Full Run
 
 Run this only after the smoke test is clean:
@@ -263,6 +279,22 @@ This uses the full fixed prompt suite in the script:
 
 - P1 warmup
 - 63 scored prompts
+
+### Benchmark Summary Helper
+
+After the benchmark JSON is written, summarize it with:
+
+```bash
+python scripts/track_a_gpu/summarize_benchmark.py \
+  artifacts/track_a_gpu/qwen3_gpu_reproduction_n63.json
+```
+
+This reports:
+
+- `raw_exit_avg_exact_match` by layer
+- `composed_avg_exact_match` by layer
+- `avg_top1_agreement_rate` by layer
+- whether L46 is consistently at least as strong as L45 on per-prompt raw-exit exact match
 
 ## Download the Artifact
 
