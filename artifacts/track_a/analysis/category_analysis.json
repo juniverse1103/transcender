@@ -1,0 +1,535 @@
+{
+  "gpt_oss": {
+    "penultimate": {
+      "Expository": {
+        "mean_em": 0.776042,
+        "perfect": 8,
+        "total": 12,
+        "mean_prefix": 34.5,
+        "mean_layers_saved": 0.442708
+      },
+      "Code/technical": {
+        "mean_em": 0.764583,
+        "perfect": 7,
+        "total": 10,
+        "mean_prefix": 36.4,
+        "mean_layers_saved": 0.4625
+      },
+      "Reasoning/logic": {
+        "mean_em": 0.854167,
+        "perfect": 6,
+        "total": 10,
+        "mean_prefix": 40.6,
+        "mean_layers_saved": 0.5
+      },
+      "Creative/open-ended": {
+        "mean_em": 1.0,
+        "perfect": 10,
+        "total": 10,
+        "mean_prefix": 48.0,
+        "mean_layers_saved": 0.35
+      },
+      "Short-answer/factual": {
+        "mean_em": 0.865929,
+        "perfect": 7,
+        "total": 11,
+        "mean_prefix": 38.2727,
+        "mean_layers_saved": 0.612125
+      },
+      "List/structured": {
+        "mean_em": 0.977083,
+        "perfect": 9,
+        "total": 10,
+        "mean_prefix": 46.9,
+        "mean_layers_saved": 0.560417
+      }
+    },
+    "penultimate_minus_1": {
+      "Expository": {
+        "mean_em": 0.609375
+      },
+      "Code/technical": {
+        "mean_em": 0.608333
+      },
+      "Reasoning/logic": {
+        "mean_em": 0.6875
+      },
+      "Creative/open-ended": {
+        "mean_em": 0.779167
+      },
+      "Short-answer/factual": {
+        "mean_em": 0.767444
+      },
+      "List/structured": {
+        "mean_em": 0.779167
+      }
+    },
+    "failures": [
+      {
+        "prompt_id": "P18",
+        "category": "Expository",
+        "exact_match": 0.708333,
+        "prefix_match": 7,
+        "first_divergence": 7,
+        "divergence_class": "early",
+        "prompt_text": "Describe the greenhouse effect and why it matters for climate."
+      },
+      {
+        "prompt_id": "P19",
+        "category": "Expository",
+        "exact_match": 0.145833,
+        "prefix_match": 7,
+        "first_divergence": 7,
+        "divergence_class": "early",
+        "prompt_text": "Explain what an API is to someone with no programming background."
+      },
+      {
+        "prompt_id": "P22",
+        "category": "Expository",
+        "exact_match": 0.270833,
+        "prefix_match": 9,
+        "first_divergence": 9,
+        "divergence_class": "early",
+        "prompt_text": "Describe how a blockchain works at a high level."
+      },
+      {
+        "prompt_id": "P23",
+        "category": "Expository",
+        "exact_match": 0.1875,
+        "prefix_match": 7,
+        "first_divergence": 7,
+        "divergence_class": "early",
+        "prompt_text": "Explain what inflation is and how it affects purchasing power."
+      },
+      {
+        "prompt_id": "P26",
+        "category": "Code/technical",
+        "exact_match": 0.25,
+        "prefix_match": 9,
+        "first_divergence": 9,
+        "divergence_class": "early",
+        "prompt_text": "Explain the difference between a stack and a queue."
+      },
+      {
+        "prompt_id": "P28",
+        "category": "Code/technical",
+        "exact_match": 0.145833,
+        "prefix_match": 7,
+        "first_divergence": 7,
+        "divergence_class": "early",
+        "prompt_text": "Explain what Big O notation measures and give two examples."
+      },
+      {
+        "prompt_id": "P29",
+        "category": "Code/technical",
+        "exact_match": 0.25,
+        "prefix_match": 12,
+        "first_divergence": 12,
+        "divergence_class": "mid",
+        "prompt_text": "Write a Python function that counts the vowels in a string."
+      },
+      {
+        "prompt_id": "P8",
+        "category": "Reasoning/logic",
+        "exact_match": 0.791667,
+        "prefix_match": 38,
+        "first_divergence": 38,
+        "divergence_class": "late",
+        "prompt_text": "A farmer has 17 sheep. All but 9 run away. How many are left and why?"
+      },
+      {
+        "prompt_id": "P34",
+        "category": "Reasoning/logic",
+        "exact_match": 0.375,
+        "prefix_match": 18,
+        "first_divergence": 18,
+        "divergence_class": "mid",
+        "prompt_text": "Three boxes are labeled Apples, Oranges, and Mixed, but all labels are wrong. You pick one fruit from one box. How do you label all three correctly?"
+      },
+      {
+        "prompt_id": "P35",
+        "category": "Reasoning/logic",
+        "exact_match": 0.541667,
+        "prefix_match": 22,
+        "first_divergence": 22,
+        "divergence_class": "mid",
+        "prompt_text": "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost?"
+      },
+      {
+        "prompt_id": "P37",
+        "category": "Reasoning/logic",
+        "exact_match": 0.833333,
+        "prefix_match": 40,
+        "first_divergence": 40,
+        "divergence_class": "late",
+        "prompt_text": "You are in a room with two doors and two guards. One always lies and one always tells the truth. What single question can you ask to find the safe door?"
+      },
+      {
+        "prompt_id": "P12",
+        "category": "Short-answer/factual",
+        "exact_match": 0.921053,
+        "prefix_match": 35,
+        "first_divergence": 35,
+        "divergence_class": "late",
+        "prompt_text": "What is the capital of Australia?"
+      },
+      {
+        "prompt_id": "P53",
+        "category": "Short-answer/factual",
+        "exact_match": 0.229167,
+        "prefix_match": 11,
+        "first_divergence": 11,
+        "divergence_class": "mid",
+        "prompt_text": "What is the largest organ in the human body?"
+      },
+      {
+        "prompt_id": "P54",
+        "category": "Short-answer/factual",
+        "exact_match": 0.416667,
+        "prefix_match": 20,
+        "first_divergence": 20,
+        "divergence_class": "mid",
+        "prompt_text": "What does DNA stand for?"
+      },
+      {
+        "prompt_id": "P56",
+        "category": "Short-answer/factual",
+        "exact_match": 0.958333,
+        "prefix_match": 23,
+        "first_divergence": 23,
+        "divergence_class": "mid",
+        "prompt_text": "Name the four fundamental forces in physics."
+      },
+      {
+        "prompt_id": "P64",
+        "category": "List/structured",
+        "exact_match": 0.770833,
+        "prefix_match": 37,
+        "first_divergence": 37,
+        "divergence_class": "late",
+        "prompt_text": "List five renewable energy sources and one advantage of each."
+      }
+    ],
+    "divergence_summary": {
+      "early": 6,
+      "mid": 6,
+      "late": 4
+    }
+  },
+  "qwen3": {
+    "penultimate": {
+      "Expository": {
+        "mean_em": 0.65625,
+        "perfect": 4,
+        "total": 12,
+        "mean_prefix": 29.3333,
+        "mean_layers_saved": 0.758681
+      },
+      "Code/technical": {
+        "mean_em": 0.85625,
+        "perfect": 7,
+        "total": 10,
+        "mean_prefix": 41.0,
+        "mean_layers_saved": 0.83125
+      },
+      "Reasoning/logic": {
+        "mean_em": 0.95,
+        "perfect": 7,
+        "total": 10,
+        "mean_prefix": 43.6,
+        "mean_layers_saved": 0.814583
+      },
+      "Creative/open-ended": {
+        "mean_em": 0.908333,
+        "perfect": 7,
+        "total": 10,
+        "mean_prefix": 43.4,
+        "mean_layers_saved": 0.7375
+      },
+      "Short-answer/factual": {
+        "mean_em": 0.753788,
+        "perfect": 3,
+        "total": 11,
+        "mean_prefix": 31.5455,
+        "mean_layers_saved": 0.708333
+      },
+      "List/structured": {
+        "mean_em": 0.94375,
+        "perfect": 8,
+        "total": 10,
+        "mean_prefix": 45.2,
+        "mean_layers_saved": 0.7125
+      }
+    },
+    "penultimate_minus_1": {
+      "Expository": {
+        "mean_em": 0.435764
+      },
+      "Code/technical": {
+        "mean_em": 0.45
+      },
+      "Reasoning/logic": {
+        "mean_em": 0.464583
+      },
+      "Creative/open-ended": {
+        "mean_em": 0.577083
+      },
+      "Short-answer/factual": {
+        "mean_em": 0.335227
+      },
+      "List/structured": {
+        "mean_em": 0.53125
+      }
+    },
+    "failures": [
+      {
+        "prompt_id": "P3",
+        "category": "Expository",
+        "exact_match": 0.916667,
+        "prefix_match": 44,
+        "first_divergence": 44,
+        "divergence_class": "late",
+        "prompt_text": "Write a short explanation of recursion for a beginner programmer."
+      },
+      {
+        "prompt_id": "P5",
+        "category": "Expository",
+        "exact_match": 0.125,
+        "prefix_match": 6,
+        "first_divergence": 6,
+        "divergence_class": "early",
+        "prompt_text": "Describe what photosynthesis does."
+      },
+      {
+        "prompt_id": "P17",
+        "category": "Expository",
+        "exact_match": 0.125,
+        "prefix_match": 6,
+        "first_divergence": 6,
+        "divergence_class": "early",
+        "prompt_text": "Explain how a transformer neural network processes a sentence."
+      },
+      {
+        "prompt_id": "P18",
+        "category": "Expository",
+        "exact_match": 0.916667,
+        "prefix_match": 44,
+        "first_divergence": 44,
+        "divergence_class": "late",
+        "prompt_text": "Describe the greenhouse effect and why it matters for climate."
+      },
+      {
+        "prompt_id": "P19",
+        "category": "Expository",
+        "exact_match": 0.479167,
+        "prefix_match": 14,
+        "first_divergence": 14,
+        "divergence_class": "mid",
+        "prompt_text": "Explain what an API is to someone with no programming background."
+      },
+      {
+        "prompt_id": "P20",
+        "category": "Expository",
+        "exact_match": 0.625,
+        "prefix_match": 30,
+        "first_divergence": 30,
+        "divergence_class": "late",
+        "prompt_text": "Describe how vaccines train the immune system."
+      },
+      {
+        "prompt_id": "P21",
+        "category": "Expository",
+        "exact_match": 0.479167,
+        "prefix_match": 6,
+        "first_divergence": 6,
+        "divergence_class": "early",
+        "prompt_text": "Explain the difference between machine learning and traditional programming."
+      },
+      {
+        "prompt_id": "P22",
+        "category": "Expository",
+        "exact_match": 0.208333,
+        "prefix_match": 10,
+        "first_divergence": 10,
+        "divergence_class": "early",
+        "prompt_text": "Describe how a blockchain works at a high level."
+      },
+      {
+        "prompt_id": "P7",
+        "category": "Code/technical",
+        "exact_match": 0.5625,
+        "prefix_match": 27,
+        "first_divergence": 27,
+        "divergence_class": "late",
+        "prompt_text": "Explain what a hash table is and when you would use one."
+      },
+      {
+        "prompt_id": "P29",
+        "category": "Code/technical",
+        "exact_match": 0.479167,
+        "prefix_match": 22,
+        "first_divergence": 22,
+        "divergence_class": "mid",
+        "prompt_text": "Write a Python function that counts the vowels in a string."
+      },
+      {
+        "prompt_id": "P30",
+        "category": "Code/technical",
+        "exact_match": 0.520833,
+        "prefix_match": 25,
+        "first_divergence": 25,
+        "divergence_class": "late",
+        "prompt_text": "Explain the difference between SQL and NoSQL databases."
+      },
+      {
+        "prompt_id": "P33",
+        "category": "Reasoning/logic",
+        "exact_match": 0.770833,
+        "prefix_match": 37,
+        "first_divergence": 37,
+        "divergence_class": "late",
+        "prompt_text": "You have two ropes that each take exactly one hour to burn, but burn unevenly. How can you measure 45 minutes?"
+      },
+      {
+        "prompt_id": "P35",
+        "category": "Reasoning/logic",
+        "exact_match": 0.979167,
+        "prefix_match": 27,
+        "first_divergence": 27,
+        "divergence_class": "late",
+        "prompt_text": "A bat and a ball cost $1.10 in total. The bat costs $1.00 more than the ball. How much does the ball cost?"
+      },
+      {
+        "prompt_id": "P36",
+        "category": "Reasoning/logic",
+        "exact_match": 0.75,
+        "prefix_match": 36,
+        "first_divergence": 36,
+        "divergence_class": "late",
+        "prompt_text": "If you flip a fair coin three times, what is the probability of getting exactly two heads?"
+      },
+      {
+        "prompt_id": "P43",
+        "category": "Creative/open-ended",
+        "exact_match": 0.5,
+        "prefix_match": 24,
+        "first_divergence": 24,
+        "divergence_class": "mid",
+        "prompt_text": "Write a short fable about a tortoise and an eagle."
+      },
+      {
+        "prompt_id": "P44",
+        "category": "Creative/open-ended",
+        "exact_match": 0.770833,
+        "prefix_match": 35,
+        "first_divergence": 35,
+        "divergence_class": "late",
+        "prompt_text": "Describe a busy city market to someone who has never visited one."
+      },
+      {
+        "prompt_id": "P47",
+        "category": "Creative/open-ended",
+        "exact_match": 0.8125,
+        "prefix_match": 39,
+        "first_divergence": 39,
+        "divergence_class": "late",
+        "prompt_text": "Write the first paragraph of a detective story set in Tokyo."
+      },
+      {
+        "prompt_id": "P12",
+        "category": "Short-answer/factual",
+        "exact_match": 0.416667,
+        "prefix_match": 20,
+        "first_divergence": 20,
+        "divergence_class": "mid",
+        "prompt_text": "What is the capital of Australia?"
+      },
+      {
+        "prompt_id": "P50",
+        "category": "Short-answer/factual",
+        "exact_match": 0.875,
+        "prefix_match": 32,
+        "first_divergence": 32,
+        "divergence_class": "late",
+        "prompt_text": "What year did the Berlin Wall fall?"
+      },
+      {
+        "prompt_id": "P51",
+        "category": "Short-answer/factual",
+        "exact_match": 0.1875,
+        "prefix_match": 8,
+        "first_divergence": 8,
+        "divergence_class": "early",
+        "prompt_text": "What is the speed of light in a vacuum, approximately?"
+      },
+      {
+        "prompt_id": "P52",
+        "category": "Short-answer/factual",
+        "exact_match": 0.958333,
+        "prefix_match": 46,
+        "first_divergence": 46,
+        "divergence_class": "late",
+        "prompt_text": "What programming language was originally developed by Guido van Rossum?"
+      },
+      {
+        "prompt_id": "P53",
+        "category": "Short-answer/factual",
+        "exact_match": 0.9375,
+        "prefix_match": 45,
+        "first_divergence": 45,
+        "divergence_class": "late",
+        "prompt_text": "What is the largest organ in the human body?"
+      },
+      {
+        "prompt_id": "P54",
+        "category": "Short-answer/factual",
+        "exact_match": 0.458333,
+        "prefix_match": 22,
+        "first_divergence": 22,
+        "divergence_class": "mid",
+        "prompt_text": "What does DNA stand for?"
+      },
+      {
+        "prompt_id": "P55",
+        "category": "Short-answer/factual",
+        "exact_match": 0.979167,
+        "prefix_match": 8,
+        "first_divergence": 8,
+        "divergence_class": "early",
+        "prompt_text": "What is the boiling point of water at sea level in Celsius?"
+      },
+      {
+        "prompt_id": "P56",
+        "category": "Short-answer/factual",
+        "exact_match": 0.479167,
+        "prefix_match": 22,
+        "first_divergence": 22,
+        "divergence_class": "mid",
+        "prompt_text": "Name the four fundamental forces in physics."
+      },
+      {
+        "prompt_id": "P57",
+        "category": "List/structured",
+        "exact_match": 0.604167,
+        "prefix_match": 28,
+        "first_divergence": 28,
+        "divergence_class": "late",
+        "prompt_text": "List five programming paradigms and one sentence about each."
+      },
+      {
+        "prompt_id": "P63",
+        "category": "List/structured",
+        "exact_match": 0.833333,
+        "prefix_match": 40,
+        "first_divergence": 40,
+        "divergence_class": "late",
+        "prompt_text": "List the phases of the Moon in order."
+      }
+    ],
+    "divergence_summary": {
+      "early": 6,
+      "mid": 6,
+      "late": 15
+    }
+  }
+}

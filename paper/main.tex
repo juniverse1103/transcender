@@ -5,6 +5,7 @@
 \usepackage{amssymb}
 \usepackage{booktabs}
 \usepackage{graphicx}
+\graphicspath{{figures/}}
 \let\showhyphens\relax% prevent hyperref clash with LaTeX kernel
 \usepackage[hidelinks]{hyperref}
 \usepackage[nameinlink,noabbrev]{cleveref}
@@ -29,7 +30,7 @@ This question has particular practical relevance for consumer-hardware deploymen
 
 We argue that the binding constraint in the tested setting is not exit-point selection alone, but \emph{cross-layer composition control}: when an intermediate layer and the final layer disagree, a system needs a principled rule for deciding whether to trust the shallow path, the deep path, or a combination of the two. Without such a rule, adaptive-depth inference either collapses into low-quality fixed exit or pays the full cost of computing both paths without recovering a practical speed-quality tradeoff.
 
-We present evidence supporting this reframing across three tracks. Track~A establishes a practical same-model adaptive-depth frontier on GPT-OSS 20B, with cross-model reproduction on Qwen3-30B-A3B. Track~B demonstrates that a naive cross-model cascade can fail severely when tokenizer mismatch, distribution mismatch, and orchestration overhead compound. Track~C characterizes both the promise and the current limits of composition control on dense models: compute-both agreement-aware composition recovers substantial quality on Gemma~3 4B-IT, Llama~3.1 8B, and Mistral~7B, but real selective-depth implementations do not yet beat their matched full-depth baselines on this runtime.
+We present evidence supporting this reframing across three tracks. Track~A identifies a same-model adaptive-depth operating point on GPT-OSS 20B, with cross-model reproduction on Qwen3-30B-A3B. Track~B demonstrates that a naive cross-model cascade can fail severely when tokenizer mismatch, distribution mismatch, and orchestration overhead compound. Track~C characterizes both the promise and the current limits of composition control on dense models: compute-both agreement-aware composition recovers substantial quality on Gemma~3 4B-IT, Llama~3.1 8B, and Mistral~7B, but real selective-depth implementations do not yet beat their matched full-depth baselines on this runtime.
 
 \section{Contributions}
 
@@ -46,6 +47,16 @@ We present evidence supporting this reframing across three tracks. Track~A estab
 
 \item \textbf{Real dense selective-depth speed validation.} We implement continuation-safe selective-depth runtimes on three dense model families. All physically skip deep layers on some decode tokens, but none recovers a practical speed-quality frontier on this runtime.
 \end{enumerate}
+
+\section{Related Work}
+
+Adaptive-depth inference for transformers has been studied along several axes. Elbayad et al.~\cite{elbayad2020depthadaptive} introduce per-token depth allocation via learned halting classifiers. CALM~\cite{schuster2022calm} extends this with calibrated confidence thresholds, demonstrating early exit on encoder-decoder models with a learned consistency mechanism. DeeBERT~\cite{xin2020deebert} applies early exit to BERT classification tasks using entropy-based halting. These approaches focus on \emph{when} to exit; the present work shifts emphasis to \emph{how} to compose intermediate and full-depth signals when the exit decision is uncertain.
+
+Speculative decoding~\cite{leviathan2023speculative, chen2023speculative} addresses a related problem from the opposite direction: a small draft model proposes tokens, and a larger verifier accepts or rejects them. LayerSkip~\cite{elhoushi2024layerskip} combines early exit with self-speculative decoding within a single model, using early layers as the draft and later layers as the verifier. Track~B's cascade result is a scoped negative baseline for a naive cross-model configuration, not a comparison to production speculative decoding systems.
+
+Mixture-of-Depths~\cite{raposo2024mod} trains transformers with per-token depth routing, allowing tokens to skip entire layers during forward passes. This is structurally related to Track~A's entropy-gated exit but differs in requiring training-time routing decisions rather than post-hoc inference-time composition. Switch Transformers~\cite{fedus2022switch} demonstrate that sparse expert routing enables efficient scaling; the MoE structure in Track~A's tested models creates natural per-token compute variation that may interact with adaptive-depth mechanisms differently than dense architectures, a distinction that Track~C's results empirically support.
+
+The present work differs from the above primarily in emphasis. Rather than proposing a new exit criterion or training procedure, we characterize the empirical operating limits of composition control across architecture classes and report both positive and negative results on consumer hardware.
 
 \section{Method}
 
@@ -116,7 +127,7 @@ L20 \texttt{top1\_agree} & 18.0 & 0.426 & 1.280 \\
 \end{tabular}
 \end{table}
 
-Track~A is the primary practical result. As shown in \cref{tab:tracka}, \texttt{top1\_agree} at Layer~22 achieves 0.870 exact match across 63 scored prompts (47 of 63 perfect), with an average of 0.49 layers saved per generated token via entropy-gated exit. At L22 on a 24-layer model, each early-exiting token physically skips one MoE-MLP block (layer~23); the 0.49 figure therefore reflects that approximately 49\% of decode tokens triggered the entropy gate and exited early. L22 is the only viable operating point in the local frontier: L21 drops to 0.703 exact match (27 of 63 perfect), and L20 to 0.426 (2 of 63 perfect). The layer savings are not a compute-both artifact---they reflect genuine adaptive compute reduction in the MLX runtime.
+Track~A is the primary empirical result. As shown in \cref{tab:tracka}, \texttt{top1\_agree} at Layer~22 achieves 0.870 exact match across 63 scored prompts (47 of 63 perfect), with an average of 0.49 layers saved per generated token via entropy-gated exit. At L22 on a 24-layer model, each early-exiting token physically skips one MoE-MLP block (layer~23); the 0.49 figure therefore reflects that approximately 49\% of decode tokens triggered the entropy gate and exited early. L22 is the only viable operating point in the local frontier: L21 drops to 0.703 exact match (27 of 63 perfect), and L20 to 0.426 (2 of 63 perfect). The layer savings are not a compute-both artifact---they reflect genuine adaptive compute reduction in the MLX runtime.
 
 \subsubsection{Cross-Model MoE Reproduction}
 
@@ -137,6 +148,26 @@ L45 \texttt{top1\_agree} & 32.7 & 0.463 & 1.535 \\
 \end{table}
 
 To test whether the MoE frontier generalizes beyond GPT-OSS 20B, we ran the same benchmark on Qwen3-30B-A3B, a structurally different sparse MoE model (48 layers, 128 experts, top-8 routing). As shown in \cref{tab:tracka_qwen3}, \texttt{top1\_agree} at Layer~46 (penultimate) achieves 0.837 exact match (36 of 63 perfect) with 0.760 average layers saved per token. Quality drops sharply at L45 (0.463 exact match, 6 of 63 perfect), confirming a single viable penultimate-layer operating point with the same structural pattern as GPT-OSS. The Qwen3 frontier is weaker than GPT-OSS (0.837 vs.\ 0.870), indicating that operating-point quality is model-dependent, but the frontier structure---a viable penultimate exit with a sharp cliff one layer earlier---reproduces across both tested sparse MoE families without any threshold tuning.
+
+\subsubsection{Category-Level Analysis}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{quality_cliff.png}
+\caption{Quality cliff at the penultimate-layer frontier. Both models show a sharp drop from penultimate to penultimate$-$1 layer, but Qwen3's cliff is steeper (0.837$\to$0.463 vs.\ 0.870$\to$0.703).}
+\label{fig:quality_cliff}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{category_breakdown.png}
+\caption{Penultimate-layer exact match by prompt category. Both models struggle most with expository prompts requiring sustained coherent generation, while structured and creative categories are most robust.}
+\label{fig:category_breakdown}
+\end{figure}
+
+The $N{=}63$ prompt suite spans six task categories. The quality cliff at the penultimate-layer frontier is sharp on both models (\cref{fig:quality_cliff}), and penultimate-layer quality is task-sensitive (\cref{fig:category_breakdown}). GPT-OSS L22 achieves perfect output on all 10 creative/open-ended prompts (1.000~EM) and near-perfect on list/structured output (0.977~EM, 9/10 perfect), but drops to 0.776~EM on expository prompts (8/12 perfect) and 0.765~EM on code/technical prompts (7/10 perfect). Qwen3 L46 shows a similar pattern: reasoning/logic is strongest (0.950~EM, 7/10 perfect) while expository is weakest (0.656~EM, 4/12 perfect).
+
+Failure analysis reveals architecture-dependent divergence patterns. Among GPT-OSS's 16 penultimate-layer failures, divergence positions are distributed across early (tokens~1--10: 6), mid (11--24: 6), and late (25+: 4) regions. Qwen3's 27 failures skew late: 15 of 27 (56\%) diverge after token~25, suggesting that Qwen3's composition errors tend to accumulate gradually rather than appearing at generation onset. On GPT-OSS, all four expository failures diverge within the first 10 tokens, consistent with the hypothesis that sustained coherent generation taxes the shallow path most heavily. Qwen3's eight expository failures are more distributed (4~early, 1~mid, 3~late), suggesting that the relationship between task type and divergence timing is itself architecture-dependent.
 
 \subsection{Track B: Cross-Model Cascade Baseline}
 
@@ -282,7 +313,7 @@ These results broaden the dense benchmark finding beyond Gemma, but do not justi
 
 The evidence presented supports a narrow but consistent conclusion: adaptive-depth inference for transformers is constrained less by exit-point selection than by cross-layer composition control---how intermediate and full-depth signals are combined without corrupting the output distribution.
 
-Track~A remains the primary result. On GPT-OSS 20B, \texttt{top1\_agree} at the penultimate layer achieves 0.870 exact match (47 of 63 perfect), with approximately 49\% of decode tokens physically skipping the final MoE-MLP block. On Qwen3-30B-A3B, the same mechanism at the penultimate layer achieves 0.837 exact match (36 of 63 perfect) with a sharp quality cliff one layer earlier. The frontier structure reproduces across both tested sparse MoE families; the operating-point quality is model-dependent. Track~B provides a scoped negative baseline for this naive cascade configuration. Track~C contributes three findings: fixed-exit failure on dense models, strong compute-both composition recovery, and weak real selective-depth across three tested families.
+Track~A remains the primary empirical result. On GPT-OSS 20B, \texttt{top1\_agree} at the penultimate layer achieves 0.870 exact match (47 of 63 perfect), with approximately 49\% of decode tokens physically skipping the final MoE-MLP block. On Qwen3-30B-A3B, the same mechanism at the penultimate layer achieves 0.837 exact match (36 of 63 perfect) with a sharp quality cliff one layer earlier. The frontier structure reproduces across both tested sparse MoE families; the operating-point quality is model-dependent. Track~B provides a scoped negative baseline for this naive cascade configuration. Track~C contributes three findings: fixed-exit failure on dense models, strong compute-both composition recovery, and weak real selective-depth across three tested families.
 
 The dense-model conclusion is not that adaptive depth is impossible, but that neither fixed exit nor current selective-depth mechanisms establish a practical frontier on the tested dense architectures. The next research direction is correspondingly narrower: whether family-sensitive continuation criteria, token-difficulty-aware routing, and cache-aware continuation can close the gap. That remains to be validated.
 
@@ -380,8 +411,7 @@ python scripts/track_c/\
 \item \texttt{artifacts/track\_a/qwen3\_30b\_a3b\_exit\_layer\_benchmark\_n63.json}:
   Track~A per-prompt metrics for Qwen3-30B-A3B at L40, L44, L45, L46, and L47 full-depth across 64 prompts (63 scored).
 
-\item \texttt{artifacts/track\_b/transcender\_track\_b\_benchmark.json}:
-  Track~B per-prompt and aggregate metrics for draft-only, full-depth, cascade, and Track~A comparison.
+\item \texttt{artifacts/track\_b/transcender\_track\_b\_benchmark.json}: Track~B per-prompt and aggregate metrics for draft-only, full-depth, cascade, and Track~A comparison.
 
 \item \texttt{artifacts/track\_c/transcender\_track\_c\_gemma\_results.json}:
   Track~C per-prompt and aggregate metrics for the six-mode Gemma benchmark.
@@ -395,8 +425,7 @@ python scripts/track_c/\
 \item \texttt{artifacts/recon/recon\_llama3\_8b.json}:
   KL profile and heuristic summary for Llama~3.1 8B Instruct 4-bit.
 
-\item \texttt{artifacts/dense\_followup/...llama3\_8b\_results.json}:
-  Late-checkpoint validation metrics for Llama~3.1 8B.
+\item \texttt{artifacts/dense\_followup/...llama3\_8b\_results.json}: Late-checkpoint validation metrics for Llama~3.1 8B.
 
 \item \texttt{artifacts/recon/recon\_mistral7b.json}:
   KL profile and heuristic summary for Mistral~7B Instruct v0.3 4-bit.
@@ -406,6 +435,9 @@ python scripts/track_c/\
 
 \item \texttt{artifacts/track\_c/gemma\_kl\_profile.json}:
   Per-layer KL divergence across the 34-layer Gemma~3 4B-IT stack.
+
+\item \texttt{artifacts/track\_a/analysis/category\_analysis.json}:
+  Per-category exact match, failure lists, and divergence classification for both MoE models at the penultimate layer.
 \end{itemize}
 }
 
