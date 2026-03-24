@@ -7,6 +7,8 @@ GPU frontier run:
 - Do raw candidate tokens from the tested exit layers ever differ from full depth?
 - When raw candidates disagree, does composed top1_agree just fall back to the
   full-depth token?
+- If oracle summaries are present, which final-aware oracle modes accept or
+  reject at each step?
 - Is the trace structurally sane, inconclusive, or suspicious?
 """
 
@@ -90,6 +92,73 @@ def diagnose(reports: List[Dict[str, Any]]) -> tuple[str, str]:
     )
 
 
+def oracle_step_indices(
+    trace_steps: List[Dict[str, Any]],
+    mode: str,
+    layer_label: str | None = None,
+) -> Dict[str, List[int]]:
+    accepted_steps: List[int] = []
+    rejected_steps: List[int] = []
+
+    for step in trace_steps:
+        oracle_bundle = step.get("oracles", {})
+        if mode not in oracle_bundle:
+            continue
+        row = oracle_bundle[mode]
+        if layer_label is not None:
+            row = row.get("per_layer", {}).get(layer_label)
+        if not row or row.get("available", True) is False:
+            continue
+        step_index = int(step["step_index"])
+        if bool(row["accepted"]):
+            accepted_steps.append(step_index)
+        else:
+            rejected_steps.append(step_index)
+
+    return {
+        "accepted_step_indices": accepted_steps,
+        "rejected_step_indices": rejected_steps,
+    }
+
+
+def oracle_reports(data: Dict[str, Any], trace_steps: List[Dict[str, Any]], layer_labels: List[str]) -> Dict[str, Any]:
+    summaries = data.get("oracle_summaries")
+    if not summaries:
+        return {}
+
+    reports: Dict[str, Any] = {}
+    for mode, mode_summary in summaries.items():
+        if mode_summary.get("kind") == "single_layer":
+            per_layer: Dict[str, Any] = {}
+            for layer_label in layer_labels:
+                if layer_label not in mode_summary.get("per_layer", {}):
+                    continue
+                per_layer[layer_label] = {
+                    **mode_summary["per_layer"][layer_label],
+                    **oracle_step_indices(trace_steps, mode, layer_label),
+                }
+            report: Dict[str, Any] = {
+                "kind": "single_layer",
+                "per_layer": per_layer,
+            }
+            if "margin_threshold" in mode_summary:
+                report["margin_threshold"] = mode_summary["margin_threshold"]
+            if "entropy_threshold" in mode_summary:
+                report["entropy_threshold"] = mode_summary["entropy_threshold"]
+            reports[mode] = report
+            continue
+
+        if mode_summary.get("available", True) is False:
+            reports[mode] = mode_summary
+            continue
+
+        reports[mode] = {
+            **mode_summary,
+            **oracle_step_indices(trace_steps, mode),
+        }
+    return reports
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze a GPU debug trace JSON")
     parser.add_argument("trace_json", help="Path to the debug trace JSON")
@@ -113,6 +182,7 @@ def main() -> None:
 
     reports = [layer_report(trace_steps, layer_label) for layer_label in layer_labels]
     verdict, reason = diagnose(reports)
+    oracles = oracle_reports(data, trace_steps, layer_labels)
     summary = {
         "trace_json": str(path),
         "prompt_id": data.get("prompt_id"),
@@ -120,6 +190,7 @@ def main() -> None:
         "model_family": data.get("model_family"),
         "steps": len(trace_steps),
         "layers": {report["layer"]: report for report in reports},
+        "oracle_reports": oracles,
         "verdict": verdict,
         "reason": reason,
     }
@@ -139,6 +210,44 @@ def main() -> None:
             f"{report['composed_matches_full_on_raw_disagreement_count']}/"
             f"{report['raw_diff_step_count']}"
         )
+    if oracles:
+        print("Oracle summaries:")
+        for mode, report in oracles.items():
+            if report.get("kind") == "single_layer":
+                threshold_bits: List[str] = []
+                if "margin_threshold" in report:
+                    threshold_bits.append(f"margin_threshold={report['margin_threshold']}")
+                if "entropy_threshold" in report:
+                    threshold_bits.append(f"entropy_threshold={report['entropy_threshold']}")
+                header_suffix = f" ({', '.join(threshold_bits)})" if threshold_bits else ""
+                print(f"  {mode}{header_suffix}")
+                for layer_label, layer_report_row in report["per_layer"].items():
+                    print(
+                        f"    {layer_label}: accept={layer_report_row['accepted_steps']}/{layer_report_row['total_steps']} "
+                        f"({layer_report_row['acceptance_rate']:.3f})  "
+                        f"fallback={layer_report_row['fallback_steps']}/{layer_report_row['total_steps']}  "
+                        f"oracle_EM={layer_report_row['oracle_composed_exact_match_rate']:.3f}  "
+                        f"rejected_steps={layer_report_row['rejected_step_indices']}"
+                    )
+                continue
+
+            if report.get("available", True) is False:
+                print(f"  {mode}: unavailable ({report.get('reason')})")
+                continue
+
+            extra = ""
+            if "pair" in report:
+                extra = f" pair={report['pair']}"
+            if "selected_layer_counts" in report:
+                extra = f" selected_layer_counts={report['selected_layer_counts']}"
+            print(
+                f"  {mode}:{extra} "
+                f"accept={report['accepted_steps']}/{report['total_steps']} "
+                f"({report['acceptance_rate']:.3f})  "
+                f"fallback={report['fallback_steps']}/{report['total_steps']}  "
+                f"oracle_EM={report['oracle_composed_exact_match_rate']:.3f}  "
+                f"rejected_steps={report['rejected_step_indices']}"
+            )
     print(f"Verdict: {verdict}")
     print(f"Reason: {reason}")
 

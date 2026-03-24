@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -121,6 +122,14 @@ SYSTEM_PROMPT = "You are a helpful assistant."
 DEFAULT_MAX_NEW_TOKENS = 48
 DEFAULT_BLEND_ALPHA = 0.10
 WARMUP_INDEX = 0  # P1
+SUPPORTED_ORACLE_MODES = [
+    "top1_agree",
+    "top1_agree_margin",
+    "top1_agree_entropy",
+    "two_layer_top1_agree",
+    "earliest_correct",
+]
+DEFAULT_ORACLE_MODES = ["top1_agree"]
 
 MODEL_REFERENCE_BY_SUBSTRING = {
     "qwen3-30b-a3b": {
@@ -155,6 +164,13 @@ class ModelParts:
     architecture: str
     input_hidden_state_scaling: str
     attention_mask_style: str
+
+
+@dataclass
+class OracleConfig:
+    modes: List[str]
+    margin_threshold: float
+    entropy_threshold: float
 
 
 class NonFiniteTensorError(RuntimeError):
@@ -307,7 +323,44 @@ def module_device(module: torch.nn.Module) -> torch.device:
 def round_or_none(value: Optional[float], places: int = 6) -> Optional[float]:
     if value is None:
         return None
-    return round(float(value), places)
+    value = float(value)
+    if not math.isfinite(value):
+        return None
+    return round(value, places)
+
+
+def normalize_oracle_modes(modes: Optional[List[str]]) -> List[str]:
+    resolved = DEFAULT_ORACLE_MODES if not modes else modes
+    unique_modes: List[str] = []
+    for mode in resolved:
+        if mode not in SUPPORTED_ORACLE_MODES:
+            raise ValueError(
+                f"Unsupported oracle mode {mode!r}. "
+                f"Expected one of {SUPPORTED_ORACLE_MODES}."
+            )
+        if mode not in unique_modes:
+            unique_modes.append(mode)
+    return unique_modes
+
+
+def oracle_config_dict(oracle_config: OracleConfig, exit_layers: List[int]) -> Dict[str, Any]:
+    config: Dict[str, Any] = {
+        "modes": list(oracle_config.modes),
+        "margin_threshold": round_or_none(oracle_config.margin_threshold),
+        "entropy_threshold": round_or_none(oracle_config.entropy_threshold),
+        "notes": (
+            "Oracle summaries are final-aware verifier diagnostics over the "
+            "shared-context manual-reference path. They are not deployable "
+            "selective-depth policies or speed claims."
+        ),
+    }
+    if "two_layer_top1_agree" in oracle_config.modes:
+        config["two_layer_pair"] = (
+            [f"L{exit_layers[0]}", f"L{exit_layers[1]}"]
+            if len(exit_layers) >= 2
+            else None
+        )
+    return config
 
 
 def summarize_tensor_numerics(tensor: Optional[torch.Tensor]) -> Dict[str, Any]:
@@ -748,6 +801,191 @@ def greedy_token_from_logits(logits: torch.Tensor, stage: str) -> int:
     return int(logits.float().argmax(dim=-1).item())
 
 
+def top1_top2_margin(logits: torch.Tensor) -> float:
+    values = torch.topk(logits.float(), k=min(2, logits.shape[-1]), dim=-1).values[0]
+    if values.numel() == 1:
+        return float("inf")
+    return float((values[0] - values[1]).item())
+
+
+def logits_entropy(logits: torch.Tensor) -> float:
+    probs = torch.softmax(logits.float(), dim=-1)
+    entropy = -(probs * probs.clamp_min(1e-12).log()).sum(dim=-1)
+    return float(entropy.item())
+
+
+def base_oracle_step_summary(
+    *,
+    accepted: bool,
+    selected_token: int,
+    full_token: int,
+    decision_reason: str,
+) -> Dict[str, Any]:
+    return {
+        "accepted": accepted,
+        "fallback_used": not accepted,
+        "selected_token_id": selected_token,
+        "selected_matches_full_depth": selected_token == full_token,
+        "selected_source": "exit" if accepted else "full_depth",
+        "decision_reason": decision_reason,
+    }
+
+
+def evaluate_single_layer_oracle(
+    *,
+    mode: str,
+    full_token: int,
+    exit_token: int,
+    exit_logits: torch.Tensor,
+    oracle_config: OracleConfig,
+) -> Dict[str, Any]:
+    top1_matches = exit_token == full_token
+    margin = top1_top2_margin(exit_logits)
+    entropy = logits_entropy(exit_logits)
+
+    if mode == "top1_agree":
+        accepted = top1_matches
+        decision_reason = "accepted" if accepted else "top1_mismatch"
+    elif mode == "top1_agree_margin":
+        accepted = top1_matches and margin > oracle_config.margin_threshold
+        if not top1_matches:
+            decision_reason = "top1_mismatch"
+        elif not accepted:
+            decision_reason = "margin_below_threshold"
+        else:
+            decision_reason = "accepted"
+    elif mode == "top1_agree_entropy":
+        accepted = top1_matches and entropy < oracle_config.entropy_threshold
+        if not top1_matches:
+            decision_reason = "top1_mismatch"
+        elif not accepted:
+            decision_reason = "entropy_above_threshold"
+        else:
+            decision_reason = "accepted"
+    else:
+        raise ValueError(f"Unsupported single-layer oracle mode: {mode}")
+
+    selected_token = exit_token if accepted else full_token
+    result = base_oracle_step_summary(
+        accepted=accepted,
+        selected_token=selected_token,
+        full_token=full_token,
+        decision_reason=decision_reason,
+    )
+    result["top1_matches_full_depth"] = top1_matches
+    if mode == "top1_agree_margin":
+        result["exit_top1_margin"] = round_or_none(margin)
+        result["margin_threshold"] = round_or_none(oracle_config.margin_threshold)
+    if mode == "top1_agree_entropy":
+        result["exit_entropy"] = round_or_none(entropy)
+        result["entropy_threshold"] = round_or_none(oracle_config.entropy_threshold)
+    return result
+
+
+def evaluate_two_layer_top1_agree_oracle(
+    *,
+    full_token: int,
+    exit_tokens: Dict[int, int],
+    exit_layers: List[int],
+) -> Dict[str, Any]:
+    if len(exit_layers) < 2:
+        return {
+            "available": False,
+            "reason": "requires at least two exit layers",
+        }
+
+    first_layer, second_layer = exit_layers[:2]
+    first_label = f"L{first_layer}"
+    second_label = f"L{second_layer}"
+    first_token = exit_tokens[first_layer]
+    second_token = exit_tokens[second_layer]
+    pair_agree = first_token == second_token
+    accepted = pair_agree and first_token == full_token
+    if accepted:
+        decision_reason = "accepted"
+    elif not pair_agree:
+        decision_reason = "pair_top1_mismatch"
+    else:
+        decision_reason = "pair_matches_but_not_full"
+
+    selected_token = first_token if accepted else full_token
+    result = base_oracle_step_summary(
+        accepted=accepted,
+        selected_token=selected_token,
+        full_token=full_token,
+        decision_reason=decision_reason,
+    )
+    result.update(
+        {
+            "available": True,
+            "pair": [first_label, second_label],
+            "pair_top1_tokens": {
+                first_label: first_token,
+                second_label: second_token,
+            },
+            "pair_top1_agree": pair_agree,
+            "pair_matches_full_depth_top1": accepted,
+        }
+    )
+    return result
+
+
+def evaluate_earliest_correct_oracle(
+    *,
+    full_token: int,
+    exit_tokens: Dict[int, int],
+    exit_layers: List[int],
+) -> Dict[str, Any]:
+    matching_layers = [layer_idx for layer_idx in exit_layers if exit_tokens[layer_idx] == full_token]
+    selected_layer = matching_layers[0] if matching_layers else None
+    accepted = selected_layer is not None
+    selected_token = exit_tokens[selected_layer] if selected_layer is not None else full_token
+    result = base_oracle_step_summary(
+        accepted=accepted,
+        selected_token=selected_token,
+        full_token=full_token,
+        decision_reason="accepted" if accepted else "fallback_full_depth",
+    )
+    result.update(
+        {
+            "matched_layers": [f"L{layer_idx}" for layer_idx in matching_layers],
+            "selected_layer": f"L{selected_layer}" if selected_layer is not None else "full_depth",
+        }
+    )
+    return result
+
+
+def oracle_sequence_summary(
+    full_ids: List[int],
+    oracle_ids: List[int],
+    accepted_steps: int,
+    decision_reason_counts: Dict[str, int],
+) -> Dict[str, Any]:
+    metrics = sequence_metrics(full_ids, oracle_ids)
+    total_steps = len(full_ids)
+    fallback_steps = total_steps - accepted_steps
+    return {
+        "accepted_steps": accepted_steps,
+        "total_steps": total_steps,
+        "acceptance_rate": round(accepted_steps / total_steps, 6) if total_steps else 0.0,
+        "fallback_steps": fallback_steps,
+        "fallback_rate": round(fallback_steps / total_steps, 6) if total_steps else 0.0,
+        "oracle_composed_exact_match_rate": round(metrics["exact_match_rate"], 6),
+        "oracle_composed_prefix_match_tokens": metrics["prefix_match_tokens"],
+        "oracle_composed_first_divergence_position": metrics["first_divergence_position"],
+        "oracle_composed_perfect_match": metrics["perfect_match"],
+        "decision_reason_counts": decision_reason_counts,
+    }
+
+
+def merge_reason_counts(count_maps: List[Dict[str, int]]) -> Dict[str, int]:
+    merged: Dict[str, int] = {}
+    for count_map in count_maps:
+        for reason, count in count_map.items():
+            merged[reason] = merged.get(reason, 0) + int(count)
+    return merged
+
+
 def build_step_diagnostics(
     full_hidden: torch.Tensor,
     exit_hidden: torch.Tensor,
@@ -1001,6 +1239,7 @@ def run_shared_context_decode(
     max_new_tokens: int,
     blend_alpha: float,
     include_trace: bool,
+    oracle_config: OracleConfig,
 ) -> Dict[str, Any]:
     """
     Manual token-by-token decode under shared full-depth context.
@@ -1021,6 +1260,41 @@ def run_shared_context_decode(
     exit_ids: Dict[int, List[int]] = {layer: [] for layer in exit_layers}
     composed_ids: Dict[int, List[int]] = {layer: [] for layer in exit_layers}
     agreement_counts: Dict[int, int] = {layer: 0 for layer in exit_layers}
+    per_layer_oracle_modes = [
+        mode
+        for mode in oracle_config.modes
+        if mode in {"top1_agree", "top1_agree_margin", "top1_agree_entropy"}
+    ]
+    cross_layer_oracle_modes = [
+        mode
+        for mode in oracle_config.modes
+        if mode in {"two_layer_top1_agree", "earliest_correct"}
+    ]
+    oracle_ids_by_mode: Dict[str, Dict[int, List[int]]] = {
+        mode: {layer: [] for layer in exit_layers}
+        for mode in per_layer_oracle_modes
+    }
+    oracle_accept_counts_by_mode: Dict[str, Dict[int, int]] = {
+        mode: {layer: 0 for layer in exit_layers}
+        for mode in per_layer_oracle_modes
+    }
+    oracle_reason_counts_by_mode: Dict[str, Dict[int, Dict[str, int]]] = {
+        mode: {layer: {} for layer in exit_layers}
+        for mode in per_layer_oracle_modes
+    }
+    cross_oracle_ids: Dict[str, List[int]] = {
+        mode: [] for mode in cross_layer_oracle_modes
+    }
+    cross_oracle_accept_counts: Dict[str, int] = {
+        mode: 0 for mode in cross_layer_oracle_modes
+    }
+    cross_oracle_reason_counts: Dict[str, Dict[str, int]] = {
+        mode: {} for mode in cross_layer_oracle_modes
+    }
+    earliest_correct_selected_counts: Dict[str, int] = {
+        f"L{layer_idx}": 0 for layer_idx in exit_layers
+    }
+    earliest_correct_selected_counts["full_depth"] = 0
     trace_steps: List[Dict[str, Any]] = []
     non_finite_failure: Optional[Dict[str, Any]] = None
 
@@ -1072,6 +1346,8 @@ def run_shared_context_decode(
                 },
                 "layers": {},
             }
+            step_exit_tokens: Dict[int, int] = {}
+            step_oracles: Dict[str, Any] = {}
 
             for layer_idx in exit_layers:
                 layer_label = f"L{layer_idx}"
@@ -1089,6 +1365,7 @@ def run_shared_context_decode(
                             }
                         )
                     break
+                step_exit_tokens[layer_idx] = exit_token
                 exit_ids[layer_idx].append(exit_token)
 
                 composed_logits, agreed = compose_top1_agree_logits(
@@ -1137,7 +1414,67 @@ def run_shared_context_decode(
             if non_finite_failure is not None:
                 break
 
+            for mode in per_layer_oracle_modes:
+                mode_record = step_oracles.setdefault(mode, {"kind": "single_layer", "per_layer": {}})
+                for layer_idx in exit_layers:
+                    layer_label = f"L{layer_idx}"
+                    oracle_step = evaluate_single_layer_oracle(
+                        mode=mode,
+                        full_token=full_token,
+                        exit_token=step_exit_tokens[layer_idx],
+                        exit_logits=step_out["exit_logits"][layer_idx],
+                        oracle_config=oracle_config,
+                    )
+                    oracle_step["selected_token_text"] = token_to_text(
+                        tokenizer,
+                        oracle_step["selected_token_id"],
+                    )
+                    mode_record["per_layer"][layer_label] = oracle_step
+                    oracle_ids_by_mode[mode][layer_idx].append(oracle_step["selected_token_id"])
+                    oracle_accept_counts_by_mode[mode][layer_idx] += int(oracle_step["accepted"])
+                    reason = oracle_step["decision_reason"]
+                    reason_counts = oracle_reason_counts_by_mode[mode][layer_idx]
+                    reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+            if "two_layer_top1_agree" in cross_layer_oracle_modes:
+                oracle_step = evaluate_two_layer_top1_agree_oracle(
+                    full_token=full_token,
+                    exit_tokens=step_exit_tokens,
+                    exit_layers=exit_layers,
+                )
+                if oracle_step.get("available", True):
+                    oracle_step["selected_token_text"] = token_to_text(
+                        tokenizer,
+                        oracle_step["selected_token_id"],
+                    )
+                    cross_oracle_ids["two_layer_top1_agree"].append(oracle_step["selected_token_id"])
+                    cross_oracle_accept_counts["two_layer_top1_agree"] += int(oracle_step["accepted"])
+                    reason = oracle_step["decision_reason"]
+                    reason_counts = cross_oracle_reason_counts["two_layer_top1_agree"]
+                    reason_counts[reason] = reason_counts.get(reason, 0) + 1
+                step_oracles["two_layer_top1_agree"] = oracle_step
+
+            if "earliest_correct" in cross_layer_oracle_modes:
+                oracle_step = evaluate_earliest_correct_oracle(
+                    full_token=full_token,
+                    exit_tokens=step_exit_tokens,
+                    exit_layers=exit_layers,
+                )
+                oracle_step["selected_token_text"] = token_to_text(
+                    tokenizer,
+                    oracle_step["selected_token_id"],
+                )
+                cross_oracle_ids["earliest_correct"].append(oracle_step["selected_token_id"])
+                cross_oracle_accept_counts["earliest_correct"] += int(oracle_step["accepted"])
+                earliest_correct_selected_counts[oracle_step["selected_layer"]] += 1
+                reason = oracle_step["decision_reason"]
+                reason_counts = cross_oracle_reason_counts["earliest_correct"]
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+                step_oracles["earliest_correct"] = oracle_step
+
             if include_trace:
+                if step_oracles:
+                    step_record["oracles"] = step_oracles
                 if "stage_summaries" in step_out:
                     step_record["stage_summaries"] = step_out["stage_summaries"]
                 trace_steps.append(step_record)
@@ -1190,6 +1527,63 @@ def run_shared_context_decode(
 
     result["status"] = "ok"
     result["layer_summaries"] = layer_summaries
+    oracle_summaries: Dict[str, Any] = {}
+    for mode in per_layer_oracle_modes:
+        oracle_summaries[mode] = {
+            "kind": "single_layer",
+            "per_layer": {},
+        }
+        if mode == "top1_agree_margin":
+            oracle_summaries[mode]["margin_threshold"] = round_or_none(
+                oracle_config.margin_threshold
+            )
+        if mode == "top1_agree_entropy":
+            oracle_summaries[mode]["entropy_threshold"] = round_or_none(
+                oracle_config.entropy_threshold
+            )
+        for layer_idx in exit_layers:
+            layer_label = f"L{layer_idx}"
+            oracle_summaries[mode]["per_layer"][layer_label] = oracle_sequence_summary(
+                full_ids=full_ids,
+                oracle_ids=oracle_ids_by_mode[mode][layer_idx],
+                accepted_steps=oracle_accept_counts_by_mode[mode][layer_idx],
+                decision_reason_counts=oracle_reason_counts_by_mode[mode][layer_idx],
+            )
+
+    if "two_layer_top1_agree" in cross_layer_oracle_modes:
+        if len(exit_layers) < 2:
+            oracle_summaries["two_layer_top1_agree"] = {
+                "kind": "cross_layer",
+                "available": False,
+                "reason": "requires at least two exit layers",
+            }
+        else:
+            oracle_summaries["two_layer_top1_agree"] = {
+                "kind": "cross_layer",
+                "available": True,
+                "pair": [f"L{exit_layers[0]}", f"L{exit_layers[1]}"],
+                **oracle_sequence_summary(
+                    full_ids=full_ids,
+                    oracle_ids=cross_oracle_ids["two_layer_top1_agree"],
+                    accepted_steps=cross_oracle_accept_counts["two_layer_top1_agree"],
+                    decision_reason_counts=cross_oracle_reason_counts["two_layer_top1_agree"],
+                ),
+            }
+
+    if "earliest_correct" in cross_layer_oracle_modes:
+        oracle_summaries["earliest_correct"] = {
+            "kind": "cross_layer",
+            **oracle_sequence_summary(
+                full_ids=full_ids,
+                oracle_ids=cross_oracle_ids["earliest_correct"],
+                accepted_steps=cross_oracle_accept_counts["earliest_correct"],
+                decision_reason_counts=cross_oracle_reason_counts["earliest_correct"],
+            ),
+            "selected_layer_counts": earliest_correct_selected_counts,
+        }
+
+    result["oracle_config"] = oracle_config_dict(oracle_config, exit_layers)
+    result["oracle_summaries"] = oracle_summaries
     if include_trace:
         result["trace"] = trace_steps
     return result
@@ -1206,6 +1600,8 @@ def build_prompt_summary(trace_result: Dict[str, Any], is_warmup: bool) -> Dict[
         "shared_context_mode": trace_result["shared_context_mode"],
         "layer_results": trace_result["layer_summaries"],
     }
+    if "oracle_summaries" in trace_result:
+        prompt_result["oracle_results"] = trace_result["oracle_summaries"]
     return prompt_result
 
 
@@ -1219,6 +1615,7 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
     )
 
     aggregates: Dict[str, Any] = {}
+    oracle_aggregates: Dict[str, Any] = {}
     for layer_idx in exit_layers:
         layer_label = f"L{layer_idx}"
         raw_ems = [r["layer_results"][layer_label]["raw_exit_exact_match_rate"] for r in aggregate_rows]
@@ -1246,9 +1643,104 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
         "avg_generation_tps": round(sum(full_tps) / len(full_tps), 2),
     }
 
+    first_oracle_results = aggregate_rows[0].get("oracle_results") if aggregate_rows else None
+    if first_oracle_results:
+        for mode, mode_summary in first_oracle_results.items():
+            if mode_summary.get("kind") == "single_layer":
+                oracle_aggregates[mode] = {
+                    "kind": "single_layer",
+                    "per_layer": {},
+                }
+                if "margin_threshold" in mode_summary:
+                    oracle_aggregates[mode]["margin_threshold"] = mode_summary["margin_threshold"]
+                if "entropy_threshold" in mode_summary:
+                    oracle_aggregates[mode]["entropy_threshold"] = mode_summary["entropy_threshold"]
+                for layer_idx in exit_layers:
+                    layer_label = f"L{layer_idx}"
+                    layer_rows = [r["oracle_results"][mode]["per_layer"][layer_label] for r in aggregate_rows]
+                    acceptance_rates = [row["acceptance_rate"] for row in layer_rows]
+                    oracle_ems = [row["oracle_composed_exact_match_rate"] for row in layer_rows]
+                    oracle_perfect = sum(1 for row in layer_rows if row["oracle_composed_perfect_match"])
+                    accepted_steps_total = sum(int(row["accepted_steps"]) for row in layer_rows)
+                    total_steps = sum(int(row["total_steps"]) for row in layer_rows)
+                    fallback_steps_total = sum(int(row["fallback_steps"]) for row in layer_rows)
+                    oracle_aggregates[mode]["per_layer"][layer_label] = {
+                        "avg_acceptance_rate": round(sum(acceptance_rates) / len(acceptance_rates), 6),
+                        "accepted_steps_total": accepted_steps_total,
+                        "fallback_steps_total": fallback_steps_total,
+                        "total_steps": total_steps,
+                        "micro_acceptance_rate": round(
+                            accepted_steps_total / total_steps, 6
+                        )
+                        if total_steps
+                        else 0.0,
+                        "avg_fallback_rate": round(fallback_steps_total / total_steps, 6)
+                        if total_steps
+                        else 0.0,
+                        "avg_oracle_composed_exact_match": round(
+                            sum(oracle_ems) / len(oracle_ems), 6
+                        ),
+                        "oracle_composed_perfect_count": oracle_perfect,
+                        "oracle_composed_total_scored": len(layer_rows),
+                        "decision_reason_counts": merge_reason_counts(
+                            [row["decision_reason_counts"] for row in layer_rows]
+                        ),
+                    }
+            else:
+                available = bool(mode_summary.get("available", True))
+                if not available:
+                    oracle_aggregates[mode] = {
+                        "kind": "cross_layer",
+                        "available": False,
+                        "reason": mode_summary.get("reason"),
+                    }
+                    continue
+                summary_rows = [r["oracle_results"][mode] for r in aggregate_rows]
+                acceptance_rates = [row["acceptance_rate"] for row in summary_rows]
+                oracle_ems = [row["oracle_composed_exact_match_rate"] for row in summary_rows]
+                accepted_steps_total = sum(int(row["accepted_steps"]) for row in summary_rows)
+                total_steps = sum(int(row["total_steps"]) for row in summary_rows)
+                fallback_steps_total = sum(int(row["fallback_steps"]) for row in summary_rows)
+                aggregate_summary: Dict[str, Any] = {
+                    "kind": "cross_layer",
+                    "available": True,
+                    "avg_acceptance_rate": round(sum(acceptance_rates) / len(acceptance_rates), 6),
+                    "accepted_steps_total": accepted_steps_total,
+                    "fallback_steps_total": fallback_steps_total,
+                    "total_steps": total_steps,
+                    "micro_acceptance_rate": round(
+                        accepted_steps_total / total_steps, 6
+                    )
+                    if total_steps
+                    else 0.0,
+                    "avg_fallback_rate": round(fallback_steps_total / total_steps, 6)
+                    if total_steps
+                    else 0.0,
+                    "avg_oracle_composed_exact_match": round(
+                        sum(oracle_ems) / len(oracle_ems), 6
+                    ),
+                    "oracle_composed_perfect_count": sum(
+                        1 for row in summary_rows if row["oracle_composed_perfect_match"]
+                    ),
+                    "oracle_composed_total_scored": len(summary_rows),
+                    "decision_reason_counts": merge_reason_counts(
+                        [row["decision_reason_counts"] for row in summary_rows]
+                    ),
+                }
+                if mode == "two_layer_top1_agree":
+                    aggregate_summary["pair"] = mode_summary["pair"]
+                if mode == "earliest_correct":
+                    selected_counts: Dict[str, int] = {}
+                    for row in summary_rows:
+                        for label, count in row["selected_layer_counts"].items():
+                            selected_counts[label] = selected_counts.get(label, 0) + int(count)
+                    aggregate_summary["selected_layer_counts"] = selected_counts
+                oracle_aggregates[mode] = aggregate_summary
+
     return {
         "aggregates_scope": scope,
         "aggregates": aggregates,
+        "oracle_aggregates": oracle_aggregates,
     }
 
 
@@ -1262,9 +1754,15 @@ def run_benchmark(
     prompt_limit: Optional[int] = None,
     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     blend_alpha: float = DEFAULT_BLEND_ALPHA,
+    oracle_config: Optional[OracleConfig] = None,
 ):
     parts = get_model_parts(model)
     exit_layers = normalize_exit_layers(exit_layers, parts.num_layers)
+    oracle_config = oracle_config or OracleConfig(
+        modes=list(DEFAULT_ORACLE_MODES),
+        margin_threshold=0.0,
+        entropy_threshold=float("inf"),
+    )
     selected_prompts = select_prompts(prompt_offset=prompt_offset, prompt_limit=prompt_limit)
     model_reference = resolve_reference_for_model(model_name)
 
@@ -1280,13 +1778,16 @@ def run_benchmark(
         "attention_mask_style": parts.attention_mask_style,
         "max_new_tokens": max_new_tokens,
         "blend_alpha": blend_alpha,
+        "oracle_config": oracle_config_dict(oracle_config, exit_layers),
         "warmup_prompt": "P1",
         "prompt_offset": prompt_offset,
         "prompt_limit": len(selected_prompts),
         "notes": (
             "Trustworthy reference path. Manual prefill + step decode through "
             "embed_tokens, decoder layers, final norm, and lm_head. Raw exit "
-            "tokens and composed tokens are reported separately."
+            "tokens and composed tokens are reported separately. Oracle "
+            "summaries are final-aware verifier diagnostics, not deployable "
+            "serving policies or speed claims."
         ),
         "prompt_results": [],
     }
@@ -1315,6 +1816,7 @@ def run_benchmark(
             max_new_tokens=max_new_tokens,
             blend_alpha=blend_alpha,
             include_trace=False,
+            oracle_config=oracle_config,
         )
         if trace_result.get("status") != "ok":
             results["status"] = "failed_non_finite"
@@ -1376,9 +1878,15 @@ def run_debug_trace(
     output_path: str,
     max_new_tokens: int,
     blend_alpha: float,
+    oracle_config: Optional[OracleConfig] = None,
 ):
     parts = get_model_parts(model)
     exit_layers = normalize_exit_layers(exit_layers, parts.num_layers)
+    oracle_config = oracle_config or OracleConfig(
+        modes=list(DEFAULT_ORACLE_MODES),
+        margin_threshold=0.0,
+        entropy_threshold=float("inf"),
+    )
     model_name = getattr(model.config, "_name_or_path", type(model).__name__)
 
     prompt_index = resolve_prompt_index(prompt_id)
@@ -1392,6 +1900,7 @@ def run_debug_trace(
         max_new_tokens=max_new_tokens,
         blend_alpha=blend_alpha,
         include_trace=True,
+        oracle_config=oracle_config,
     )
     trace_result["debug_mode"] = True
     trace_result["model"] = model_name
@@ -1503,6 +2012,35 @@ def main():
         help="Device for non-quantized loading (default: cuda)",
     )
     parser.add_argument(
+        "--oracle-modes",
+        type=str,
+        nargs="+",
+        choices=SUPPORTED_ORACLE_MODES,
+        default=None,
+        help=(
+            "Oracle-style final-aware acceptance rules to evaluate. Defaults "
+            f"to {DEFAULT_ORACLE_MODES} to preserve current semantics."
+        ),
+    )
+    parser.add_argument(
+        "--oracle-margin-threshold",
+        type=float,
+        default=0.0,
+        help=(
+            "Minimum exit top1-top2 margin for top1_agree_margin. "
+            "Only used when that oracle is enabled."
+        ),
+    )
+    parser.add_argument(
+        "--oracle-entropy-threshold",
+        type=float,
+        default=float("inf"),
+        help=(
+            "Maximum exit entropy for top1_agree_entropy. "
+            "Only used when that oracle is enabled."
+        ),
+    )
+    parser.add_argument(
         "--debug-trace",
         action="store_true",
         help="Write a single-prompt per-token trace using the manual reference path.",
@@ -1512,6 +2050,11 @@ def main():
     print(f"Loading {args.model} (quantize={args.quantize})...")
     model, tokenizer = load_model_and_tokenizer(args.model, args.quantize, args.device)
     print("Model loaded.")
+    oracle_config = OracleConfig(
+        modes=normalize_oracle_modes(args.oracle_modes),
+        margin_threshold=args.oracle_margin_threshold,
+        entropy_threshold=args.oracle_entropy_threshold,
+    )
 
     if args.debug_trace:
         if not args.prompt_id:
@@ -1524,6 +2067,7 @@ def main():
             output_path=args.output,
             max_new_tokens=args.max_new_tokens,
             blend_alpha=args.blend_alpha,
+            oracle_config=oracle_config,
         )
         return
 
@@ -1537,6 +2081,7 @@ def main():
         prompt_limit=args.prompt_limit or None,
         max_new_tokens=args.max_new_tokens,
         blend_alpha=args.blend_alpha,
+        oracle_config=oracle_config,
     )
 
 

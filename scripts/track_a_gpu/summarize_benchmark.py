@@ -6,6 +6,7 @@ This helper reports:
 - raw_exit_avg_exact_match by layer
 - composed_avg_exact_match by layer
 - avg_top1_agreement_rate by layer
+- oracle acceptance / fallback summaries when oracle aggregates are present
 - whether the penultimate layer is consistently stronger than the previous
   layer on raw-exit exact match
 """
@@ -112,12 +113,26 @@ def build_summary(data: Dict[str, Any], path: Path) -> Dict[str, Any]:
             "consistent": False,
         }
     )
+    oracle_summary: Dict[str, Any] = {}
+    for mode, mode_summary in data.get("oracle_aggregates", {}).items():
+        if mode_summary.get("kind") == "single_layer":
+            oracle_summary[mode] = {
+                "kind": "single_layer",
+                "per_layer": mode_summary.get("per_layer", {}),
+            }
+            if "margin_threshold" in mode_summary:
+                oracle_summary[mode]["margin_threshold"] = mode_summary["margin_threshold"]
+            if "entropy_threshold" in mode_summary:
+                oracle_summary[mode]["entropy_threshold"] = mode_summary["entropy_threshold"]
+            continue
+        oracle_summary[mode] = mode_summary
     return {
         "benchmark_json": str(path),
         "model": data.get("model"),
         "model_family": data.get("model_family"),
         "aggregates_scope": data.get("aggregates_scope"),
         "layers": layers,
+        "oracle_aggregates": oracle_summary,
         "penultimate_vs_previous_raw_exit": comparison,
     }
 
@@ -153,6 +168,41 @@ def main() -> None:
             f"composed_avg_exact_match={layer['composed_avg_exact_match']:.3f}  "
             f"avg_top1_agreement_rate={layer['avg_top1_agreement_rate']:.3f}"
         )
+    if summary["oracle_aggregates"]:
+        print("Oracle aggregates:")
+        for mode, mode_summary in summary["oracle_aggregates"].items():
+            if mode_summary.get("kind") == "single_layer":
+                threshold_bits: List[str] = []
+                if "margin_threshold" in mode_summary:
+                    threshold_bits.append(f"margin_threshold={mode_summary['margin_threshold']}")
+                if "entropy_threshold" in mode_summary:
+                    threshold_bits.append(f"entropy_threshold={mode_summary['entropy_threshold']}")
+                header_suffix = f" ({', '.join(threshold_bits)})" if threshold_bits else ""
+                print(f"  {mode}{header_suffix}")
+                for layer_label, layer_summary in mode_summary["per_layer"].items():
+                    print(
+                        f"    {layer_label}: "
+                        f"avg_acceptance_rate={layer_summary['avg_acceptance_rate']:.3f}  "
+                        f"micro_acceptance_rate={layer_summary['micro_acceptance_rate']:.3f}  "
+                        f"avg_fallback_rate={layer_summary['avg_fallback_rate']:.3f}  "
+                        f"avg_oracle_EM={layer_summary['avg_oracle_composed_exact_match']:.3f}"
+                    )
+                continue
+            if mode_summary.get("available", True) is False:
+                print(f"  {mode}: unavailable ({mode_summary.get('reason')})")
+                continue
+            extra = ""
+            if "pair" in mode_summary:
+                extra = f" pair={mode_summary['pair']}"
+            if "selected_layer_counts" in mode_summary:
+                extra = f" selected_layer_counts={mode_summary['selected_layer_counts']}"
+            print(
+                f"  {mode}:{extra} "
+                f"avg_acceptance_rate={mode_summary['avg_acceptance_rate']:.3f}  "
+                f"micro_acceptance_rate={mode_summary['micro_acceptance_rate']:.3f}  "
+                f"avg_fallback_rate={mode_summary['avg_fallback_rate']:.3f}  "
+                f"avg_oracle_EM={mode_summary['avg_oracle_composed_exact_match']:.3f}"
+            )
 
     comparison = summary["penultimate_vs_previous_raw_exit"]
     if comparison["available"]:
