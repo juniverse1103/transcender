@@ -48,6 +48,16 @@ Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 
 ---
 
+## How To Read The Evidence
+
+- `Track A` is the primary empirical result in the paper: the main same-model adaptive-depth frontier on the local MLX path.
+- `Track B` remains paper-relevant as a scoped negative baseline showing that the naive cross-model cascade setup fails in this configuration.
+- `Track C` remains paper-relevant as boundary-condition evidence on dense models: fixed exit degrades, compute-both recovers quality, and real selective-depth remains weak on this runtime.
+- `GPU Track A + Stage B / karma` is an offline diagnostic extension. It helps interpret penultimate acceptance, but it does not replace the core roles of Tracks A, B, and C.
+- Direct cross-track numeric comparison should either use the shared `P2`-`P5` expository subset or keep the canonical `Track A N=63` tables separate from the smaller `Track B` and `Track C` tables.
+
+---
+
 ## GPU Diagnostic Path And Offline Stage B
 
 - `scripts/track_a_gpu/` provides a trustworthy manual-reference decode path, oracle-style final-aware summaries, token-level relation-row export, and offline proxy evaluation helpers.
@@ -57,6 +67,7 @@ Hardware: Apple M1 Pro, 32 GB unified memory, Apple MLX runtime.
 - Penultimate entropy remains a crude offline baseline, and the framing is correction-vs-shared-failure rather than simple agreement.
 - The offline interpretation is that `karma` materially improves Stage B decision quality across multiple model families, but this remains a held-out offline evaluation result rather than an online policy claim.
 - `karma = probability_of_need_full_depth`, so lower is safer to accept at penultimate.
+- This Stage B work strengthens the interpretation of penultimate acceptance, but it does not eliminate the need for Track B and Track C in the paper.
 - This is not an online serving policy and not a claim of final-free inference.
 - See [`docs/karma_stage_b_summary.md`](docs/karma_stage_b_summary.md) for the compact paper-facing Stage B note and export instructions.
 
@@ -154,6 +165,7 @@ pytest tests/ -v
 | `scripts/track_a_gpu/summarize_benchmark.py` | A | Diagnostic | Summarize aggregate GPU validation JSON by layer |
 | `scripts/track_a_gpu/compare_benchmarks.py` | A | Diagnostic | Compare multiple GPU benchmark JSON files across models |
 | `scripts/track_a_gpu/evaluate_relation_proxies.py` | A | Diagnostic | Offline Stage A / Stage B proxy evaluation on token rows, including optional `karma` logistic fitting |
+| `scripts/export_track_comparison_table.py` | A/B/C | Reporting | Export compact paper-facing Track A / B / C comparison tables for main scope or matched `P2-P5` scope |
 | `scripts/track_b/transcender_track_b_cascade.py` | B | Negative baseline | Cross-model cascade engine |
 | `scripts/track_b/transcender_track_b_benchmark.py` | B | Negative baseline | Track A vs Track B comparison |
 | `scripts/track_c/transcender_track_c_gemma_profile.py` | C | Validated | Gemma KL depth profiling |
@@ -182,6 +194,8 @@ python scripts/track_a/transcender_server.py --model /path/to/gpt-oss-20b --port
 ## GPU Track A Validation
 
 `scripts/track_a_gpu/` is the repo's off-MLX validation path for Track A. It exists to test whether the penultimate-layer frontier survives on GPU under a trustworthy manual-reference decode path. It is not the canonical paper evidence and it should not be read as a serving-speed benchmark. It also does not implement MLX-style entropy-gated physical skipping, so its aggregates are structural diagnostics rather than direct replacements for the MLX Track A release numbers.
+
+Within the paper framing, this path is additive rather than substitutive: the local MLX Track A result remains the main empirical claim, Track B remains the scoped negative cascade baseline, and Track C remains the dense-model limitation evidence.
 
 This path now also supports oracle-style final-aware summaries, token-level relation-row export, and offline proxy evaluation. The present Stage B conclusion is narrow: naive adjacent-layer agreement has not held up as a cross-family penultimate-acceptance signal, penultimate entropy is a crude live baseline, and the next step is offline interpretable risk modeling rather than another oracle mode.
 
@@ -289,6 +303,7 @@ python scripts/track_a_gpu/summarize_karma_results.py \
 - [`paper/snippets/offline_stage_b_karma_note.tex`](paper/snippets/offline_stage_b_karma_note.tex) — Ready-to-paste cautious LaTeX wording for the offline Stage B framing
 - [`paper/Transcender_Final_Whitepaper_v2.md`](paper/Transcender_Final_Whitepaper_v2.md) — Superseded markdown narrative retained with a status notice
 - [`docs/BENCHMARK_SUMMARY.md`](docs/BENCHMARK_SUMMARY.md) — Cross-track benchmark comparison
+- [`docs/TRACK_MATCHING_PLAN.md`](docs/TRACK_MATCHING_PLAN.md) — Exact Track A / B / C scope mismatch and matched-scope reporting plan
 - [`docs/karma_stage_b_summary.md`](docs/karma_stage_b_summary.md) — Compact Stage B summary, limitations, and export commands
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — Archived execution roadmap with release-status note
 - [`docs/NEXT_EXPERIMENTS.md`](docs/NEXT_EXPERIMENTS.md) — Archived optional post-release research notes

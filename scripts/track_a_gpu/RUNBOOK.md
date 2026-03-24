@@ -20,6 +20,13 @@ This is an external-validity test, not a serving benchmark:
 - second step: 3-prompt smoke test
 - third step: full N=63 run only if the trace and smoke test are clean
 
+Paper role of this path:
+
+- Track~A on MLX remains the primary empirical result.
+- Track~B remains the scoped negative cascade baseline.
+- Track~C remains the dense-model limitation and boundary-condition evidence.
+- This GPU path is an offline diagnostic extension that strengthens the interpretation of penultimate acceptance; it does not replace the Track~A/B/C structure.
+
 ## Measurement Fix
 
 The earlier HF scaffold was not trustworthy enough to interpret frontier numbers.

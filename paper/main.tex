@@ -100,7 +100,7 @@ When continuation is required after one or more accepted shallow tokens, the pre
 
 \section{Experimental Setup}
 
-All results were collected on a single Apple M1 Pro system with 32~GB unified memory using the Apple MLX runtime. The Track~A evaluation uses a suite of 64 prompts spanning six categories: expository (13), code/technical (10), reasoning/logic (10), creative/open-ended (10), short-answer factual (11), and list/structured output (10). Each prompt generates 48 tokens under greedy decoding. Aggregate metrics exclude the first prompt as warmup to reduce distortion from JIT compilation and initial memory allocation, yielding $N{=}63$ scored prompts. Tracks~B and~C use a smaller five-prompt subset of the expository category.
+All results were collected on a single Apple M1 Pro system with 32~GB unified memory using the Apple MLX runtime. The Track~A evaluation uses a suite of 64 prompts spanning six categories: expository (13), code/technical (10), reasoning/logic (10), creative/open-ended (10), short-answer factual (11), and list/structured output (10). Each prompt generates 48 tokens under greedy decoding. Aggregate metrics exclude the first prompt as warmup to reduce distortion from JIT compilation and initial memory allocation, yielding $N{=}63$ scored prompts. Tracks~B and~C use a smaller five-prompt subset of the expository category. Direct cross-track numeric comparison should therefore either slice Track~A to the same shared expository subset or keep the Track~A $N{=}63$ tables separate from the smaller Track~B and Track~C tables.
 
 The primary quality metric is exact token-sequence match against a full-depth baseline on the same model. Secondary metrics include generation throughput (tokens per second), time to first token (TTFT), elapsed time, peak memory, and layer-saving statistics where applicable.
 
@@ -174,7 +174,7 @@ Failure analysis reveals architecture-dependent divergence patterns. Among GPT-O
 \begin{table}[t]
 \centering
 \small
-\caption{Track~B comparison on the local Apple MLX runtime. The Track~A row provides context.}
+\caption{Track~B comparison on the local Apple MLX runtime. The Track~A row is recomputed on the same shared expository subset ($P2$--$P5$ scored after warmup) for matched-scope context.}
 \label{tab:trackb}
 \resizebox{\columnwidth}{!}{%
 \begin{tabular}{@{}lcccc@{}}
@@ -184,13 +184,13 @@ Mode & Gen TPS & Exact Match & Peak Mem (GB) & TTFT (s) \\
 Draft only (Gemma 3 4B-IT) & 18.99 & 0.006 & 7.28 & 0.23 \\
 GPT-OSS full depth & 30.94 & 1.000 & 12.96 & 0.66 \\
 Naive cascade & 0.28 & 0.026 & 20.19 & 11.83 \\
-Track A L22 \texttt{top1\_agree} & 18.6 & 0.870 & 12.96 & 0.98 \\
+Track A L22 \texttt{top1\_agree} (matched subset) & 23.76 & 1.000 & 12.96 & 0.83 \\
 \bottomrule
 \end{tabular}%
 }
 \end{table}
 
-Track~B is not a claim about cascade systems in general. It is a scoped negative baseline for this particular naive implementation, this Gemma~3 4B-IT / GPT-OSS 20B model pair, and this local runtime. As shown in \cref{tab:trackb}, the naive cascade reaches only 0.026 exact match at 0.28 TPS with 20.19~GB peak memory. The primary causes are tokenizer mismatch, output-distribution mismatch, and two-model orchestration overhead. We treat this result as evidence about the cascade tax in this specific configuration, not as a general statement against speculative decoding~\cite{leviathan2023speculative}.
+Track~B is not a claim about cascade systems in general. It is a scoped negative baseline for this particular naive implementation, this Gemma~3 4B-IT / GPT-OSS 20B model pair, and this local runtime. As shown in \cref{tab:trackb}, the naive cascade reaches only 0.026 exact match at 0.28 TPS with 20.19~GB peak memory. On the same matched expository subset, the canonical Track~A L22 policy reaches 1.000 exact match at 23.76 TPS, so the cascade gap is not an artifact of mixing denominators. The primary causes are tokenizer mismatch, output-distribution mismatch, and two-model orchestration overhead. We treat this result as evidence about the cascade tax in this specific configuration, not as a general statement against speculative decoding~\cite{leviathan2023speculative}.
 
 \subsection{Track C: Dense Model Evaluation}
 
@@ -300,7 +300,7 @@ These results broaden the dense benchmark finding beyond Gemma, but do not justi
 
 \item \textbf{Runtime dependence.} All throughput, latency, and memory measurements are specific to a single Apple M1 Pro system using MLX. Direct comparison to GPU-based inference is not appropriate.
 
-\item \textbf{Evaluation scale.} Track~A uses 63 scored prompts across six categories; Tracks~B and~C use five. This is sufficient for directional findings but insufficient for statistical confidence intervals.
+\item \textbf{Evaluation scale.} Track~A uses 63 scored prompts across six categories; the checked-in Track~B and Track~C artifacts use a legacy five-prompt expository subset with four scored prompts after warmup. This is sufficient for directional findings but insufficient for statistical confidence intervals.
 
 \item \textbf{Offline Stage~B scope.} The GPU token-row analysis used for the Stage~B framing is a held-out offline diagnostic based on structural reproduction runs rather than a deployment benchmark. It supports a framing hypothesis about penultimate-layer risk, not a production policy, a universal threshold, or a serving-speed claim.
 
@@ -317,7 +317,7 @@ The evidence presented supports a narrow but consistent conclusion: adaptive-dep
 
 Track~A remains the primary empirical result. On GPT-OSS 20B, \texttt{top1\_agree} at the penultimate layer achieves 0.870 exact match (47 of 63 perfect), with approximately 49\% of decode tokens physically skipping the final MoE-MLP block. On Qwen3-30B-A3B, the same mechanism at the penultimate layer achieves 0.837 exact match (36 of 63 perfect) with a sharp quality cliff one layer earlier. The frontier structure reproduces across both tested sparse MoE families; the operating-point quality is model-dependent. Track~B provides a scoped negative baseline for this naive cascade configuration. Track~C contributes three findings: fixed-exit failure on dense models, strong compute-both composition recovery, and weak real selective-depth across three tested families.
 
-Separate offline GPU-path analysis also suggests that the penultimate acceptance question is better framed as a risk-estimation problem than as simple confidence thresholding: adjacent-layer agreement is too weak as a Stage~B signal, penultimate entropy is only a crude baseline, and a small offline logistic score is more naturally interpreted as the probability that full depth is still needed. We treat that result as a cautious diagnostic framing, not as a deployment claim.
+Separate offline GPU-path analysis also suggests that the penultimate acceptance question is better framed as a risk-estimation problem than as simple confidence thresholding: adjacent-layer agreement is too weak as a Stage~B signal, penultimate entropy is only a crude baseline, and a small offline logistic score is more naturally interpreted as the probability that full depth is still needed. We treat that result as a cautious diagnostic extension to the main Track~A/B/C evidence, not as a deployment claim or as a replacement for Track~B's negative baseline and Track~C's dense-model boundary evidence.
 
 The dense-model conclusion is not that adaptive depth is impossible, but that neither fixed exit nor current selective-depth mechanisms establish a practical frontier on the tested dense architectures. The next research direction is correspondingly narrower: whether family-sensitive continuation criteria, token-difficulty-aware routing, and cache-aware continuation can close the gap. That remains to be validated.
 
@@ -326,9 +326,9 @@ The dense-model conclusion is not that adaptive depth is impossible, but that ne
 \section{Offline Stage B Diagnostic Note}
 \label{app:stageb}
 
-The GPU Track~A diagnostic path also supports token-level relation-row export for an offline Stage~B decision problem. The oracle labels distinguish three cases: \texttt{earlier\_correct}, \texttt{need\_penultimate}, and \texttt{need\_full\_depth}. Stage~A asks whether the earlier layer was already sufficient. Stage~B starts only after that has failed and asks whether the penultimate layer is still safe to accept or whether full depth is required.
+The GPU Track~A diagnostic path also supports token-level relation-row export for an offline Stage~B decision problem. This is an additive diagnostic extension to the paper's main Track~A/B/C structure, not a replacement for it. The oracle labels distinguish three cases: \texttt{earlier\_correct}, \texttt{need\_penultimate}, and \texttt{need\_full\_depth}. Stage~A asks whether the earlier layer was already sufficient. Stage~B starts only after that has failed and asks whether the penultimate layer is still safe to accept or whether full depth is required.
 
-The current conclusion from this offline analysis is narrow. Simple adjacent-layer agreement is not a reliable cross-family Stage~B acceptance signal, and penultimate entropy is better treated as a weak confidence-style baseline than as a full explanation of the decision. A small offline logistic model over penultimate and adjacent-relation features, summarized internally as \texttt{karma}, is better interpreted as a risk score for whether the penultimate layer remains unsafe and full depth is still needed. Lower \texttt{karma} is therefore safer. We emphasize that this remains an offline held-out result and not a production routing policy.
+The current conclusion from this offline analysis is narrow. Simple adjacent-layer agreement is not a reliable cross-family Stage~B acceptance signal, and penultimate entropy is better treated as a weak confidence-style baseline than as a full explanation of the decision. A small offline logistic model over penultimate and adjacent-relation features, summarized internally as \texttt{karma}, is better interpreted as a risk score for whether the penultimate layer remains unsafe and full depth is still needed. Lower \texttt{karma} is therefore safer. We emphasize that this remains an offline held-out result and not a production routing policy, a universal threshold, or a reason to delete the Track~B and Track~C framing from the paper.
 
 \section{Reproduction Commands}
 \label{app:repro}

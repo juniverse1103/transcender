@@ -8,12 +8,20 @@ This summary belongs to the broader `transcender` research repo, which includes 
 
 ## Cross-Track Snapshot
 
-| Track | Model(s) | Configuration | Exact Match | Avg Layers Saved | Gen TPS | Key Finding |
-|-------|----------|---------------|-------------|------------------|---------|-------------|
-| **A** | GPT-OSS 20B (MoE, 24L) | L22 `top1_agree` | **0.941** | 0.528 | 21.1 | Strong positive penultimate-layer frontier on one tested sparse MoE family |
-| **A** | Qwen3-30B-A3B (MoE, 48L) | L46 `top1_agree` | **0.868** | 0.735 | 34.5 | Same frontier structure reproduces on a second tested sparse MoE family, but at weaker quality |
-| **B** | Gemma 3 4B-IT + GPT-OSS 20B | Naive cascade | 0.026 | — | 0.28 | Scoped negative baseline for this model pair and local MLX runtime |
-| **C** | Gemma 3 4B-IT, Llama 3.1 8B, Mistral 7B | Dense compute-both + selective-depth follow-up | Mixed | Mixed | Mixed | Compute-both quality recovery is real; no practical dense selective-depth frontier was established on this runtime |
+| Track | Model(s) | Configuration | Prompt Scope | Exact Match | Avg Layers Saved | Gen TPS | Key Finding |
+|-------|----------|---------------|--------------|-------------|------------------|---------|-------------|
+| **A** | GPT-OSS 20B (MoE, 24L) | L22 `top1_agree` | canonical `N=63` | **0.870** | 0.490 | 18.6 | Strong positive penultimate-layer frontier on one tested sparse MoE family |
+| **A** | Qwen3-30B-A3B (MoE, 48L) | L46 `top1_agree` | canonical `N=63` | **0.837** | 0.760 | 32.1 | Same frontier structure reproduces on a second tested sparse MoE family, but at weaker quality |
+| **B** | Gemma 3 4B-IT + GPT-OSS 20B | Naive cascade | legacy expository `N=4` scored | 0.026 | — | 0.28 | Scoped negative baseline for this model pair and local MLX runtime |
+| **C** | Gemma 3 4B-IT, Llama 3.1 8B, Mistral 7B | Dense compute-both + selective-depth follow-up | legacy expository `N=4` scored | Mixed | Mixed | Mixed | Compute-both quality recovery is real; no practical dense selective-depth frontier was established on this runtime |
+
+How to read this summary:
+
+- Track A is the main Transcender result in the paper.
+- Track B is a scoped negative cascade baseline and should not be erased by later offline diagnostics.
+- Track C is dense-model boundary evidence and should not be erased by later offline diagnostics.
+- The GPU Track A / Stage B karma work is additive offline interpretation work, not a replacement for the Track A/B/C structure.
+- The Track A rows above use the canonical `N=63` artifacts. Track B and Track C remain on the older five-prompt expository subset, so direct cross-track comparison should use the matched-scope helper in `scripts/export_track_comparison_table.py` or the note in `docs/TRACK_MATCHING_PLAN.md`.
 
 ---
 
@@ -25,22 +33,22 @@ This summary belongs to the broader `transcender` research repo, which includes 
 
 | Config | Exact Match | Perfect Prompts | Avg Layers Saved | Gen TPS |
 |--------|-------------|-----------------|------------------|---------|
-| Full depth (L23) | 1.000 | 15/15 | 0.000 | 25.2 |
-| L22 `top1_agree` | **0.941** | **13/15** | **0.528** | **21.1** |
-| L21 `top1_agree` | 0.745 | 6/15 | 1.156 | 22.2 |
-| L20 `top1_agree` | 0.379 | 0/15 | 1.257 | 20.0 |
+| Full depth (L23) | 1.000 | 63/63 | 0.000 | 21.9 |
+| L22 `top1_agree` | **0.870** | **47/63** | **0.490** | **18.6** |
+| L21 `top1_agree` | 0.703 | 27/63 | 1.128 | 19.4 |
+| L20 `top1_agree` | 0.426 | 2/63 | 1.277 | 18.0 |
 
-**Interpretation:** GPT-OSS shows a narrow but practical penultimate-layer frontier. L22 is the only viable selective-exit operating point in the measured frontier; one layer earlier the quality drops sharply.
+**Interpretation:** GPT-OSS shows a narrow but practical penultimate-layer frontier on the canonical `N=63` suite. L22 is the only viable selective-exit operating point in the measured frontier; one layer earlier the quality drops sharply.
 
 ### Qwen3-30B-A3B
 
 | Config | Exact Match | Perfect Prompts | Avg Layers Saved | Gen TPS |
 |--------|-------------|-----------------|------------------|---------|
-| Full depth (L47) | 1.000 | 15/15 | 0.000 | 40.9 |
-| L46 `top1_agree` | **0.868** | **11/15** | **0.735** | **34.5** |
-| L45 `top1_agree` | 0.432 | 0/15 | 1.481 | 35.3 |
+| Full depth (L47) | 1.000 | 63/63 | 0.000 | 37.3 |
+| L46 `top1_agree` | **0.837** | **36/63** | **0.760** | **32.1** |
+| L45 `top1_agree` | 0.463 | 6/63 | 1.535 | 32.7 |
 
-**Interpretation:** Qwen3 reproduces the same structural frontier pattern as GPT-OSS: a viable penultimate exit and a sharp cliff one layer earlier. The operating-point quality is weaker than GPT-OSS, so the result should be framed as a qualified positive rather than as uniform MoE generalization.
+**Interpretation:** Qwen3 reproduces the same structural frontier pattern as GPT-OSS on the canonical `N=63` suite: a viable penultimate exit and a sharp cliff one layer earlier. The operating-point quality is weaker than GPT-OSS, so the result should be framed as a qualified positive rather than as uniform MoE generalization.
 
 **Cross-architecture note:** Cross-layer subspace mismatch remains confirmed at 4.11x on GPT-OSS and 2.46x on Gemma. The public-release terminology is **Subspace Mismatch**.
 

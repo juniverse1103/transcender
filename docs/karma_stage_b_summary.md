@@ -9,6 +9,13 @@ Scope:
 - diagnostic only, not a serving policy
 - intended for paper drafting, appendix notes, and next-run hygiene
 
+## Position In The Paper
+
+- `Track A` remains the primary empirical result: the main same-model adaptive-depth frontier.
+- `Track B` still matters as the scoped negative cascade baseline.
+- `Track C` still matters as dense-model limitation and boundary-condition evidence.
+- `GPU Track A + Stage B / karma` is additive. It strengthens the interpretation of penultimate acceptance, but it does not replace the Track A/B/C structure.
+
 ## Stage B Problem
 
 The token-row export induces three oracle labels:
@@ -41,6 +48,8 @@ The current offline interpretation is:
 
 This matters because confidence and risk are not the same here. A penultimate token can have low entropy or high margin and still be in a regime where the final layer would correct it. The working interpretation is therefore: Stage B is better framed as estimating the risk that the penultimate layer is still unsafe than as thresholding a generic confidence scalar.
 
+This should be read as one layer of the story, not the whole story. Stage B helps explain when penultimate acceptance is risky, but it does not eliminate the need for the Track B cascade baseline or the Track C dense-model boundary evidence.
+
 ## Cross-Model Paper Table
 
 At edit time, the checked-in repo snapshot did not include the model-level Stage B JSON outputs under `artifacts/track_a_gpu/`, and `/workspace/artifacts/track_a_gpu/` was also absent. The table below therefore preserves the intended paper schema without inventing numbers.
@@ -59,7 +68,8 @@ At edit time, the checked-in repo snapshot did not include the model-level Stage
 - The current claim is not that Stage B has a deployable threshold. The current claim is that Stage B appears to be a risk-estimation problem.
 - Adjacent agreement is the main negative result. It is too weak to serve as the acceptance signal on its own.
 - Penultimate entropy remains a live baseline, but only as a crude confidence proxy.
-- The current internal interpretation is that `karma` materially improves accepted-error behavior at useful recall on multiple model families. That claim should be backed by the exported cross-model table once the model-level JSONs are copied into the repo.
+- The offline evidence to date suggests that `karma` materially improves accepted-error behavior at useful recall on multiple model families. That claim should be backed by the exported cross-model table once the model-level JSONs are copied into the repo.
+- This strengthens the interpretation of penultimate acceptance inside Track A, but it does not subsume the role of Track B or Track C in the paper.
 - Gemma 3 `12B` is already the weakest checkpoint in the checked-in raw penultimate benchmark notes. It should be treated as the first likely weak or pathological regime when the Stage B paper table is populated. Do not generalize that checkpoint-specific weakness into a universal dense-model statement.
 
 ## Limitations
