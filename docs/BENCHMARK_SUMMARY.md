@@ -12,7 +12,7 @@ This summary belongs to the broader `transcender` research repo, which includes 
 |-------|----------|---------------|--------------|-------------|------------------|---------|-------------|
 | **A** | GPT-OSS 20B (MoE, 24L) | L22 `top1_agree` | canonical `N=63` | **0.870** | 0.490 | 18.6 | Strong positive penultimate-layer frontier on one tested sparse MoE family |
 | **A** | Qwen3-30B-A3B (MoE, 48L) | L46 `top1_agree` | canonical `N=63` | **0.837** | 0.760 | 32.1 | Same frontier structure reproduces on a second tested sparse MoE family, but at weaker quality |
-| **B** | Gemma 3 4B-IT + GPT-OSS 20B | Naive cascade | legacy expository `N=4` scored | 0.026 | — | 0.28 | Scoped negative baseline for this model pair and local MLX runtime |
+| **B** | Gemma 3 4B-IT + GPT-OSS 20B | Naive cascade | matched `P2-P5` scored | 0.021 | — | 0.18 | Scoped negative baseline for this model pair and local MLX runtime |
 | **C** | Gemma 3 4B-IT, Llama 3.1 8B, Mistral 7B | Dense compute-both + selective-depth follow-up | legacy expository `N=4` scored | Mixed | Mixed | Mixed | Compute-both quality recovery is real; no practical dense selective-depth frontier was established on this runtime |
 
 How to read this summary:
@@ -21,7 +21,9 @@ How to read this summary:
 - Track B is a scoped negative cascade baseline and should not be erased by later offline diagnostics.
 - Track C is dense-model boundary evidence and should not be erased by later offline diagnostics.
 - The GPU Track A / Stage B karma work is additive offline interpretation work, not a replacement for the Track A/B/C structure.
-- The Track A rows above use the canonical `N=63` artifacts. Track B and Track C remain on the older five-prompt expository subset, so direct cross-track comparison should use the matched-scope helper in `scripts/export_track_comparison_table.py` or the note in `docs/TRACK_MATCHING_PLAN.md`.
+- The Track A rows above use the canonical `N=63` artifacts.
+- Track B now also has a dedicated matched-scope rerun on `P1`-`P5` with `P1` treated as warmup.
+- Track C still remains on the older five-prompt expository subset, so direct cross-track comparison should use the matched-scope helper in `scripts/export_track_comparison_table.py` or the note in `docs/TRACK_MATCHING_PLAN.md`.
 
 ---
 
@@ -60,11 +62,11 @@ How to read this summary:
 
 | Mode | Gen TPS | Exact Match | Peak Mem (GB) | TTFT (s) |
 |------|---------|-------------|---------------|----------|
-| Draft only (Gemma 3 4B-IT) | 18.99 | 0.006 | 7.28 | 0.23 |
-| GPT-OSS full depth | 30.94 | 1.000 | 12.96 | 0.66 |
-| Naive cascade | **0.28** | **0.026** | 20.19 | 11.83 |
+| Draft only (Gemma 3 4B-IT) | 10.35 | 0.006 | 7.28 | 0.66 |
+| GPT-OSS full depth | 25.76 | 1.000 | 12.96 | 1.58 |
+| Naive cascade | **0.18** | **0.021** | 20.19 | 4.34 |
 
-**Interpretation:** This is a negative comparison baseline for one naive cascade implementation, one mismatched model pair, and one local runtime. It does not support a general claim about cascade methods as a class.
+**Interpretation:** This matched-scope rerun keeps Track B negative. It is a negative comparison baseline for one naive cascade implementation, one mismatched model pair, and one local runtime. It does not support a general claim about cascade methods as a class.
 
 ---
 

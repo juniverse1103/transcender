@@ -19,6 +19,10 @@ For paper alignment, Track B should be rerun under an explicit prompt scope so t
 - the artifact metadata shows which prompt suite was used
 - a canonical full-suite rerun is available when needed, without changing Track A logic
 
+Completed matched-scope artifact:
+
+- `artifacts/track_b/transcender_track_b_benchmark_matched_p1_p5_chunk16.json`
+
 ## Commands
 
 Use explicit output names so rerun artifacts are self-describing.
@@ -46,7 +50,8 @@ python scripts/track_b/transcender_track_b_benchmark.py \
   --draft-model /path/to/gemma-3-4b-it \
   --prompt-suite canonical_64 \
   --prompt-ids P1,P2,P3,P4,P5 \
-  --output artifacts/track_b/transcender_track_b_benchmark_matched_p1_p5.json
+  --draft-chunk-tokens 16 \
+  --output artifacts/track_b/transcender_track_b_benchmark_matched_p1_p5_chunk16.json
 ```
 
 ### Canonical full-suite rerun
@@ -74,7 +79,7 @@ The Track B JSON now records:
 Use filenames that match the scope label:
 
 - `transcender_track_b_benchmark_expository5.json`
-- `transcender_track_b_benchmark_matched_p1_p5.json`
+- `transcender_track_b_benchmark_matched_p1_p5_chunk16.json`
 - `transcender_track_b_benchmark_canonical64.json`
 
 ## What To Compare In The Paper

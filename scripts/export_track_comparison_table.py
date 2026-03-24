@@ -33,6 +33,7 @@ class RowSpec:
     model: str
     condition: str
     artifact_path: str
+    matched_artifact_path: str | None
     container_key: str
     item_key: str
     comparison_space: str
@@ -46,6 +47,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="GPT-OSS 20B",
         condition="L22 top1_agree",
         artifact_path="artifacts/track_a/transcender_exit_layer_benchmark_n63.json",
+        matched_artifact_path=None,
         container_key="configs",
         item_key="L22_top1_agree",
         comparison_space="same_model_native_token_space",
@@ -57,6 +59,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Qwen3-30B-A3B",
         condition="L46 top1_agree",
         artifact_path="artifacts/track_a/qwen3_30b_a3b_exit_layer_benchmark_n63.json",
+        matched_artifact_path=None,
         container_key="configs",
         item_key="L46_top1_agree",
         comparison_space="same_model_native_token_space",
@@ -68,10 +71,11 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Gemma 3 4B-IT -> GPT-OSS 20B",
         condition="naive cascade",
         artifact_path="artifacts/track_b/transcender_track_b_benchmark.json",
+        matched_artifact_path="artifacts/track_b/transcender_track_b_benchmark_matched_p1_p5_chunk16.json",
         container_key="modes",
         item_key="track_b_naive_cascade",
         comparison_space="gpt_oss_reference_token_space",
-        notes="Scoped negative baseline; cross-model comparison is normalized in GPT-OSS token space.",
+        notes="Scoped negative baseline; matched-scope rerun uses canonical prompt definitions filtered to P1-P5 and compares in GPT-OSS token space.",
         main_prompt_scope="legacy_expository_subset_5_prompts_4_scored",
     ),
     RowSpec(
@@ -79,6 +83,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Gemma 3 4B-IT",
         condition="fixed exit L31",
         artifact_path="artifacts/track_c/transcender_track_c_gemma_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="late_exit_L31",
         comparison_space="same_model_native_token_space",
@@ -90,6 +95,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Gemma 3 4B-IT",
         condition="top1_agree compute-both L31",
         artifact_path="artifacts/track_c/transcender_track_c_gemma_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="top1_agree_L31",
         comparison_space="same_model_native_token_space",
@@ -101,6 +107,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Gemma 3 4B-IT",
         condition="selective entropy L31",
         artifact_path="artifacts/track_c/transcender_track_c_gemma_selective_depth_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="selective_depth_entropy_L31",
         comparison_space="same_model_native_token_space",
@@ -112,6 +119,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Llama 3.1 8B",
         condition="fixed exit L29",
         artifact_path="artifacts/dense_followup/transcender_track_c_llama3_8b_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="fixed_exit_L29",
         comparison_space="same_model_native_token_space",
@@ -123,6 +131,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Llama 3.1 8B",
         condition="top1_agree compute-both L29",
         artifact_path="artifacts/dense_followup/transcender_track_c_llama3_8b_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="top1_agree_compute_both_L29",
         comparison_space="same_model_native_token_space",
@@ -134,6 +143,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Llama 3.1 8B",
         condition="selective entropy L29",
         artifact_path="artifacts/dense_followup/transcender_track_c_llama3_8b_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="selective_depth_entropy_L29",
         comparison_space="same_model_native_token_space",
@@ -145,6 +155,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Mistral 7B v0.3",
         condition="fixed exit L29",
         artifact_path="artifacts/dense_followup/transcender_track_c_mistral7b_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="fixed_exit_L29",
         comparison_space="same_model_native_token_space",
@@ -156,6 +167,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Mistral 7B v0.3",
         condition="top1_agree compute-both L29",
         artifact_path="artifacts/dense_followup/transcender_track_c_mistral7b_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="top1_agree_compute_both_L29",
         comparison_space="same_model_native_token_space",
@@ -167,6 +179,7 @@ ROW_SPECS: Sequence[RowSpec] = (
         model="Mistral 7B v0.3",
         condition="selective entropy L29",
         artifact_path="artifacts/dense_followup/transcender_track_c_mistral7b_results.json",
+        matched_artifact_path=None,
         container_key="modes",
         item_key="selective_depth_entropy_L29",
         comparison_space="same_model_native_token_space",
@@ -270,12 +283,16 @@ def collect_rows(scope: str) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     cache: Dict[Path, Dict[str, Any]] = {}
     for spec in ROW_SPECS:
-        path = REPO_ROOT / spec.artifact_path
-        payload = cache.setdefault(path, load_json(path))
-        item = find_item(payload, spec.container_key, spec.item_key)
         if scope in {"main", "all"}:
+            path = REPO_ROOT / spec.artifact_path
+            payload = cache.setdefault(path, load_json(path))
+            item = find_item(payload, spec.container_key, spec.item_key)
             rows.append(derive_main_row(spec, item))
         if scope in {"matched", "all"}:
+            matched_artifact_path = spec.matched_artifact_path or spec.artifact_path
+            path = REPO_ROOT / matched_artifact_path
+            payload = cache.setdefault(path, load_json(path))
+            item = find_item(payload, spec.container_key, spec.item_key)
             rows.append(derive_matched_row(spec, item))
     return rows
 
