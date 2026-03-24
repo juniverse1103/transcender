@@ -310,7 +310,25 @@ def round_or_none(value: Optional[float], places: int = 6) -> Optional[float]:
     return round(float(value), places)
 
 
-def summarize_tensor_numerics(tensor: torch.Tensor) -> Dict[str, Any]:
+def summarize_tensor_numerics(tensor: Optional[torch.Tensor]) -> Dict[str, Any]:
+    if tensor is None:
+        return {
+            "is_none": True,
+            "shape": None,
+            "dtype": None,
+            "all_finite": True,
+            "has_nan": False,
+            "has_pos_inf": False,
+            "has_neg_inf": False,
+            "finite_count": 0,
+            "nan_count": 0,
+            "pos_inf_count": 0,
+            "neg_inf_count": 0,
+            "min_finite": None,
+            "max_finite": None,
+            "max_abs_finite": None,
+        }
+
     tensor = tensor.detach()
     flat = tensor.float()
     finite_mask = torch.isfinite(flat)
@@ -320,6 +338,7 @@ def summarize_tensor_numerics(tensor: torch.Tensor) -> Dict[str, Any]:
     finite_count = int(finite_mask.sum().item())
 
     summary: Dict[str, Any] = {
+        "is_none": False,
         "shape": list(tensor.shape),
         "dtype": str(tensor.dtype),
         "all_finite": bool(finite_mask.all().item()),
@@ -367,7 +386,7 @@ def ensure_finite_tensor(
 
 def ensure_valid_attention_mask(
     stage: str,
-    attention_mask: torch.Tensor,
+    attention_mask: Optional[torch.Tensor],
     stage_summaries: Optional[Dict[str, Any]] = None,
     extra: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
