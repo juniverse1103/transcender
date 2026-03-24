@@ -124,7 +124,20 @@ Off-MLX structural reproductions on an NVIDIA H200 (transformers 5.3.0.dev0) con
 | top1_agree_entropy (τ=1.5) | 71.0% | 90.5% |
 | two_layer_top1_agree | 77.6% | 82.7% |
 
-Entropy gating at τ=1.5 substantially hurts GPT-OSS but barely affects Qwen3, suggesting oracle design is model-sensitive.
+Plain penultimate `top1_agree` yields the highest acceptance rate on both models. Adding entropy, margin, or cross-layer gating reduces acceptance without demonstrated quality benefit under the manual-reference verifier path. Oracle design is model-sensitive: entropy gating at τ=1.5 reduces GPT-OSS acceptance substantially but barely affects Qwen3.
+
+**48→64 token length robustness:**
+
+| Model | Layer | t48 EM | t64 EM | Δ |
+|-------|-------|--------|--------|---|
+| GPT-OSS 20B | L20 | 0.589 | 0.594 | +0.005 |
+| GPT-OSS 20B | L21 | 0.808 | 0.807 | −0.001 |
+| GPT-OSS 20B | L22 | 0.879 | 0.876 | −0.003 |
+| Qwen3-30B-A3B | L44 | 0.793 | 0.766 | −0.027 |
+| Qwen3-30B-A3B | L45 | 0.832 | 0.809 | −0.023 |
+| Qwen3-30B-A3B | L46 | 0.916 | 0.904 | −0.012 |
+
+GPT-OSS is essentially unchanged. Qwen3 shows a uniform ~2–3% drop at longer sequences, but the monotonic L44 < L45 < L46 ordering is fully preserved. The frontier structure is length-robust in ordering, though architecture-dependent in absolute stability.
 
 **Stage B karma logistic** (GPU token-row analysis):
 
@@ -133,7 +146,7 @@ Entropy gating at τ=1.5 substantially hurts GPT-OSS but barely affects Qwen3, s
 | GPT-OSS 20B | **0.859** | **0.085** | 0.564 | 0.288 | +0.295 |
 | Qwen3-30B-A3B | **0.864** | **0.078** | 0.529 | 0.466 | +0.335 |
 
-**Token-row triage:** 81–83% of tokens are correctly served from earlier exit; 9–10% need just the penultimate layer; 8–9% require full depth.
+**Token-row triage (manual-reference verifier path):** Under shared full-depth context, 81–83% of tokens match full depth at the earlier exit layer; 9–10% additionally match at the penultimate layer; 8–9% require full depth. These are verifier-path diagnostics, not deployment-path routing decisions.
 
 **Interpretation:** The penultimate advantage holds on both runtimes. The sharp quality cliff seen on MLX (especially Qwen3 0.837→0.463) is materially softer on GPU (0.916→0.832). Frontier structure is robust off-MLX; cliff severity is runtime-sensitive. These are structural diagnostics, not serving benchmarks.
 
