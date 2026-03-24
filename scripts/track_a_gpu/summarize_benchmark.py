@@ -133,6 +133,8 @@ def build_summary(data: Dict[str, Any], path: Path) -> Dict[str, Any]:
         "aggregates_scope": data.get("aggregates_scope"),
         "layers": layers,
         "oracle_aggregates": oracle_summary,
+        "first_divergence_aggregates": data.get("first_divergence_aggregates", {}),
+        "oracle_headroom_summary": data.get("oracle_headroom_summary", {}),
         "penultimate_vs_previous_raw_exit": comparison,
     }
 
@@ -203,6 +205,31 @@ def main() -> None:
                 f"avg_fallback_rate={mode_summary['avg_fallback_rate']:.3f}  "
                 f"avg_oracle_EM={mode_summary['avg_oracle_composed_exact_match']:.3f}"
             )
+    first_divergence = summary.get("first_divergence_aggregates", {})
+    if first_divergence.get("per_layer"):
+        print("First divergence aggregates:")
+        for layer_label, row in first_divergence["per_layer"].items():
+            print(
+                f"  {layer_label}: "
+                f"raw_first_div_mean={row['raw_first_divergence_mean']:.3f}  "
+                f"raw_first_div_median={row['raw_first_divergence_median']:.3f}"
+            )
+        pair = first_divergence.get("penultimate_vs_previous", {})
+        if pair.get("available"):
+            print(
+                "  penultimate_vs_previous_first_divergence: "
+                f"{pair['penultimate_label']} diverged later than {pair['previous_label']} on "
+                f"{pair['penultimate_diverges_later_count']}/{pair['total_prompts']} prompts; "
+                f"same_first_divergence={pair['same_first_divergence_count']}/{pair['total_prompts']}"
+            )
+    headroom = summary.get("oracle_headroom_summary", {})
+    if headroom.get("available"):
+        print(
+            "Oracle headroom: "
+            f"earliest_correct_vs_{headroom['penultimate_label']}_top1_agree "
+            f"avg_gap={headroom['avg_acceptance_gap']:.3f}  "
+            f"micro_gap={headroom['micro_acceptance_gap']:.3f}"
+        )
 
     comparison = summary["penultimate_vs_previous_raw_exit"]
     if comparison["available"]:

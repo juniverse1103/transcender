@@ -27,10 +27,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import statistics
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import torch
 from transformers.cache_utils import DynamicCache
@@ -361,6 +362,36 @@ def oracle_config_dict(oracle_config: OracleConfig, exit_layers: List[int]) -> D
             else None
         )
     return config
+
+
+def validate_relation_topk(relation_topk: int) -> None:
+    if relation_topk <= 0:
+        raise ValueError("--relation-topk must be > 0")
+
+
+def validate_token_row_exit_layers(exit_layers: List[int]) -> None:
+    if len(exit_layers) != 2:
+        raise ValueError(
+            "--emit-token-rows currently requires exactly two exit layers so "
+            "the rows have an unambiguous earlier/penultimate pair."
+        )
+
+
+def token_row_layer_pair(exit_layers: List[int]) -> tuple[int, int]:
+    validate_token_row_exit_layers(exit_layers)
+    return exit_layers[0], exit_layers[1]
+
+
+def write_jsonl_rows(path: str, rows: Iterable[Dict[str, Any]]) -> int:
+    out_path = Path(path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    count = 0
+    with out_path.open("w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row))
+            handle.write("\n")
+            count += 1
+    return count
 
 
 def summarize_tensor_numerics(tensor: Optional[torch.Tensor]) -> Dict[str, Any]:
@@ -814,6 +845,137 @@ def logits_entropy(logits: torch.Tensor) -> float:
     return float(entropy.item())
 
 
+def topk_token_ids(logits: torch.Tensor, k: int) -> List[int]:
+    flat_logits = logits.float().reshape(-1)
+    topk = torch.topk(flat_logits, k=min(k, flat_logits.shape[0]))
+    return [int(token_id) for token_id in topk.indices.tolist()]
+
+
+def topk_overlap_metrics(
+    earlier_logits: torch.Tensor,
+    penultimate_logits: torch.Tensor,
+    k: int,
+) -> Dict[str, float]:
+    earlier_topk = set(topk_token_ids(earlier_logits, k))
+    penultimate_topk = set(topk_token_ids(penultimate_logits, k))
+    overlap = len(earlier_topk & penultimate_topk)
+    union = len(earlier_topk | penultimate_topk)
+    return {
+        "topk_overlap_at_k": overlap,
+        "topk_jaccard_at_k": round(overlap / union, 6) if union else 0.0,
+    }
+
+
+def token_rank(logits: torch.Tensor, token_id: int) -> int:
+    flat_logits = logits.float().reshape(-1)
+    token_logit = float(flat_logits[int(token_id)].item())
+    higher_count = int((flat_logits > token_logit).sum().item())
+    return higher_count + 1
+
+
+def logit_delta_metrics(
+    earlier_logits: torch.Tensor,
+    penultimate_logits: torch.Tensor,
+) -> Dict[str, Any]:
+    diff = penultimate_logits.float() - earlier_logits.float()
+    return {
+        "logit_delta_l2": round_or_none(float(torch.linalg.vector_norm(diff.reshape(-1), ord=2).item())),
+        "logit_delta_max_abs": round_or_none(float(diff.abs().max().item())),
+    }
+
+
+def build_relation_features(
+    earlier_logits: torch.Tensor,
+    penultimate_logits: torch.Tensor,
+    relation_topk: int,
+) -> Dict[str, Any]:
+    earlier_top1 = greedy_token_from_logits(earlier_logits, "relation_features.earlier_logits")
+    penultimate_top1 = greedy_token_from_logits(
+        penultimate_logits,
+        "relation_features.penultimate_logits",
+    )
+    features: Dict[str, Any] = {
+        "earlier_top1": earlier_top1,
+        "earlier_margin": round_or_none(top1_top2_margin(earlier_logits)),
+        "earlier_entropy": round_or_none(logits_entropy(earlier_logits)),
+        "penultimate_top1": penultimate_top1,
+        "penultimate_margin": round_or_none(top1_top2_margin(penultimate_logits)),
+        "penultimate_entropy": round_or_none(logits_entropy(penultimate_logits)),
+        "adjacent_top1_agree": earlier_top1 == penultimate_top1,
+        "rank_of_penultimate_top1_in_earlier": token_rank(earlier_logits, penultimate_top1),
+        "rank_of_earlier_top1_in_penultimate": token_rank(penultimate_logits, earlier_top1),
+    }
+    features.update(topk_overlap_metrics(earlier_logits, penultimate_logits, relation_topk))
+    features.update(logit_delta_metrics(earlier_logits, penultimate_logits))
+    features["entropy_delta"] = round_or_none(
+        features["penultimate_entropy"] - features["earlier_entropy"]
+    )
+    features["margin_delta"] = round_or_none(
+        features["penultimate_margin"] - features["earlier_margin"]
+    )
+    return features
+
+
+def oracle_triage_label(
+    earlier_matches_full: bool,
+    penultimate_matches_full: bool,
+) -> str:
+    if earlier_matches_full:
+        return "earlier_correct"
+    if penultimate_matches_full:
+        return "need_penultimate"
+    return "need_full_depth"
+
+
+def build_relation_token_row(
+    *,
+    model_name: str,
+    prompt_id: str,
+    step_index: int,
+    earlier_layer: int,
+    penultimate_layer: int,
+    earlier_logits: torch.Tensor,
+    penultimate_logits: torch.Tensor,
+    full_token: int,
+    relation_topk: int,
+) -> Dict[str, Any]:
+    features = build_relation_features(
+        earlier_logits=earlier_logits,
+        penultimate_logits=penultimate_logits,
+        relation_topk=relation_topk,
+    )
+    earlier_matches_full = bool(features["earlier_top1"] == full_token)
+    penultimate_matches_full = bool(features["penultimate_top1"] == full_token)
+    return {
+        "model": model_name,
+        "prompt_id": prompt_id,
+        "step_index": step_index,
+        "earlier_layer": f"L{earlier_layer}",
+        "penultimate_layer": f"L{penultimate_layer}",
+        "earlier_top1": features["earlier_top1"],
+        "earlier_margin": features["earlier_margin"],
+        "earlier_entropy": features["earlier_entropy"],
+        "penultimate_top1": features["penultimate_top1"],
+        "penultimate_margin": features["penultimate_margin"],
+        "penultimate_entropy": features["penultimate_entropy"],
+        "adjacent_top1_agree": features["adjacent_top1_agree"],
+        "topk_overlap_at_k": features["topk_overlap_at_k"],
+        "topk_jaccard_at_k": features["topk_jaccard_at_k"],
+        "rank_of_penultimate_top1_in_earlier": features["rank_of_penultimate_top1_in_earlier"],
+        "rank_of_earlier_top1_in_penultimate": features["rank_of_earlier_top1_in_penultimate"],
+        "logit_delta_l2": features["logit_delta_l2"],
+        "logit_delta_max_abs": features["logit_delta_max_abs"],
+        "entropy_delta": features["entropy_delta"],
+        "margin_delta": features["margin_delta"],
+        "earlier_matches_full": earlier_matches_full,
+        "penultimate_matches_full": penultimate_matches_full,
+        "oracle_triage_label": oracle_triage_label(
+            earlier_matches_full=earlier_matches_full,
+            penultimate_matches_full=penultimate_matches_full,
+        ),
+    }
+
+
 def base_oracle_step_summary(
     *,
     accepted: bool,
@@ -1233,6 +1395,7 @@ def manual_forward_step(
 def run_shared_context_decode(
     parts: ModelParts,
     tokenizer,
+    model_name: str,
     prompt_id: str,
     prompt_text: str,
     exit_layers: List[int],
@@ -1240,6 +1403,8 @@ def run_shared_context_decode(
     blend_alpha: float,
     include_trace: bool,
     oracle_config: OracleConfig,
+    emit_token_rows: bool = False,
+    relation_topk: int = 5,
 ) -> Dict[str, Any]:
     """
     Manual token-by-token decode under shared full-depth context.
@@ -1260,6 +1425,12 @@ def run_shared_context_decode(
     exit_ids: Dict[int, List[int]] = {layer: [] for layer in exit_layers}
     composed_ids: Dict[int, List[int]] = {layer: [] for layer in exit_layers}
     agreement_counts: Dict[int, int] = {layer: 0 for layer in exit_layers}
+    if emit_token_rows:
+        validate_relation_topk(relation_topk)
+        earlier_relation_layer, penultimate_relation_layer = token_row_layer_pair(exit_layers)
+    else:
+        earlier_relation_layer = -1
+        penultimate_relation_layer = -1
     per_layer_oracle_modes = [
         mode
         for mode in oracle_config.modes
@@ -1295,6 +1466,7 @@ def run_shared_context_decode(
         f"L{layer_idx}": 0 for layer_idx in exit_layers
     }
     earliest_correct_selected_counts["full_depth"] = 0
+    token_rows: List[Dict[str, Any]] = []
     trace_steps: List[Dict[str, Any]] = []
     non_finite_failure: Optional[Dict[str, Any]] = None
 
@@ -1414,6 +1586,21 @@ def run_shared_context_decode(
             if non_finite_failure is not None:
                 break
 
+            if emit_token_rows:
+                token_rows.append(
+                    build_relation_token_row(
+                        model_name=model_name,
+                        prompt_id=prompt_id,
+                        step_index=step_index,
+                        earlier_layer=earlier_relation_layer,
+                        penultimate_layer=penultimate_relation_layer,
+                        earlier_logits=step_out["exit_logits"][earlier_relation_layer],
+                        penultimate_logits=step_out["exit_logits"][penultimate_relation_layer],
+                        full_token=full_token,
+                        relation_topk=relation_topk,
+                    )
+                )
+
             for mode in per_layer_oracle_modes:
                 mode_record = step_oracles.setdefault(mode, {"kind": "single_layer", "per_layer": {}})
                 for layer_idx in exit_layers:
@@ -1503,6 +1690,8 @@ def run_shared_context_decode(
     if non_finite_failure is not None:
         result["status"] = "failed_non_finite"
         result["non_finite_failure"] = non_finite_failure
+        if emit_token_rows:
+            result["token_rows"] = token_rows
         if include_trace:
             result["trace"] = trace_steps
         return result
@@ -1584,6 +1773,8 @@ def run_shared_context_decode(
 
     result["oracle_config"] = oracle_config_dict(oracle_config, exit_layers)
     result["oracle_summaries"] = oracle_summaries
+    if emit_token_rows:
+        result["token_rows"] = token_rows
     if include_trace:
         result["trace"] = trace_steps
     return result
@@ -1616,6 +1807,9 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
 
     aggregates: Dict[str, Any] = {}
     oracle_aggregates: Dict[str, Any] = {}
+    first_divergence_aggregates: Dict[str, Any] = {
+        "per_layer": {},
+    }
     for layer_idx in exit_layers:
         layer_label = f"L{layer_idx}"
         raw_ems = [r["layer_results"][layer_label]["raw_exit_exact_match_rate"] for r in aggregate_rows]
@@ -1623,6 +1817,10 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
         comp_ems = [r["layer_results"][layer_label]["composed_exact_match_rate"] for r in aggregate_rows]
         comp_perfect = sum(1 for r in aggregate_rows if r["layer_results"][layer_label]["composed_perfect_match"])
         agreements = [r["layer_results"][layer_label]["top1_agreement_rate"] for r in aggregate_rows]
+        raw_first_divs = [
+            r["layer_results"][layer_label]["raw_exit_first_divergence_position"]
+            for r in aggregate_rows
+        ]
 
         aggregates[layer_label] = {
             "exit_layer": layer_idx,
@@ -1634,6 +1832,10 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
             "composed_total_scored": len(aggregate_rows),
             "avg_top1_agreement_rate": round(sum(agreements) / len(agreements), 6),
         }
+        first_divergence_aggregates["per_layer"][layer_label] = {
+            "raw_first_divergence_mean": round(statistics.mean(raw_first_divs), 6),
+            "raw_first_divergence_median": round_or_none(statistics.median(raw_first_divs)),
+        }
 
     full_tps = [r["generation_tps"] for r in aggregate_rows]
     aggregates["full_depth"] = {
@@ -1642,6 +1844,32 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
         "total_scored": len(aggregate_rows),
         "avg_generation_tps": round(sum(full_tps) / len(full_tps), 2),
     }
+
+    if len(exit_layers) < 2:
+        first_divergence_aggregates["penultimate_vs_previous"] = {
+            "available": False,
+            "total_prompts": len(aggregate_rows),
+        }
+    else:
+        previous_label = f"L{exit_layers[-2]}"
+        penultimate_label = f"L{exit_layers[-1]}"
+        penultimate_later_count = 0
+        same_first_divergence_count = 0
+        for row in aggregate_rows:
+            previous_div = row["layer_results"][previous_label]["raw_exit_first_divergence_position"]
+            penultimate_div = row["layer_results"][penultimate_label]["raw_exit_first_divergence_position"]
+            if penultimate_div > previous_div:
+                penultimate_later_count += 1
+            if penultimate_div == previous_div:
+                same_first_divergence_count += 1
+        first_divergence_aggregates["penultimate_vs_previous"] = {
+            "available": True,
+            "previous_label": previous_label,
+            "penultimate_label": penultimate_label,
+            "total_prompts": len(aggregate_rows),
+            "penultimate_diverges_later_count": penultimate_later_count,
+            "same_first_divergence_count": same_first_divergence_count,
+        }
 
     first_oracle_results = aggregate_rows[0].get("oracle_results") if aggregate_rows else None
     if first_oracle_results:
@@ -1737,10 +1965,39 @@ def aggregate_prompt_results(prompt_results: List[Dict[str, Any]], exit_layers: 
                     aggregate_summary["selected_layer_counts"] = selected_counts
                 oracle_aggregates[mode] = aggregate_summary
 
+    oracle_headroom_summary: Dict[str, Any] = {"available": False}
+    if (
+        len(exit_layers) >= 2
+        and "top1_agree" in oracle_aggregates
+        and "earliest_correct" in oracle_aggregates
+        and oracle_aggregates["earliest_correct"].get("available", True)
+    ):
+        penultimate_label = f"L{exit_layers[-1]}"
+        penultimate_top1 = oracle_aggregates["top1_agree"]["per_layer"][penultimate_label]
+        earliest_correct = oracle_aggregates["earliest_correct"]
+        oracle_headroom_summary = {
+            "available": True,
+            "penultimate_label": penultimate_label,
+            "penultimate_top1_agree_avg_acceptance": penultimate_top1["avg_acceptance_rate"],
+            "penultimate_top1_agree_micro_acceptance": penultimate_top1["micro_acceptance_rate"],
+            "earliest_correct_avg_acceptance": earliest_correct["avg_acceptance_rate"],
+            "earliest_correct_micro_acceptance": earliest_correct["micro_acceptance_rate"],
+            "avg_acceptance_gap": round(
+                earliest_correct["avg_acceptance_rate"] - penultimate_top1["avg_acceptance_rate"],
+                6,
+            ),
+            "micro_acceptance_gap": round(
+                earliest_correct["micro_acceptance_rate"] - penultimate_top1["micro_acceptance_rate"],
+                6,
+            ),
+        }
+
     return {
         "aggregates_scope": scope,
         "aggregates": aggregates,
         "oracle_aggregates": oracle_aggregates,
+        "first_divergence_aggregates": first_divergence_aggregates,
+        "oracle_headroom_summary": oracle_headroom_summary,
     }
 
 
@@ -1755,9 +2012,17 @@ def run_benchmark(
     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS,
     blend_alpha: float = DEFAULT_BLEND_ALPHA,
     oracle_config: Optional[OracleConfig] = None,
+    emit_token_rows: bool = False,
+    token_rows_output: Optional[str] = None,
+    relation_topk: int = 5,
 ):
     parts = get_model_parts(model)
     exit_layers = normalize_exit_layers(exit_layers, parts.num_layers)
+    if emit_token_rows:
+        validate_relation_topk(relation_topk)
+        validate_token_row_exit_layers(exit_layers)
+        if not token_rows_output:
+            raise ValueError("--emit-token-rows requires --token-rows-output")
     oracle_config = oracle_config or OracleConfig(
         modes=list(DEFAULT_ORACLE_MODES),
         margin_threshold=0.0,
@@ -1791,6 +2056,7 @@ def run_benchmark(
         ),
         "prompt_results": [],
     }
+    all_token_rows: List[Dict[str, Any]] = []
     if model_reference is not None:
         results["model_reference"] = model_reference
 
@@ -1810,6 +2076,7 @@ def run_benchmark(
         trace_result = run_shared_context_decode(
             parts=parts,
             tokenizer=tokenizer,
+            model_name=model_name,
             prompt_id=prompt_id,
             prompt_text=prompt_text,
             exit_layers=exit_layers,
@@ -1817,6 +2084,8 @@ def run_benchmark(
             blend_alpha=blend_alpha,
             include_trace=False,
             oracle_config=oracle_config,
+            emit_token_rows=emit_token_rows,
+            relation_topk=relation_topk,
         )
         if trace_result.get("status") != "ok":
             results["status"] = "failed_non_finite"
@@ -1827,6 +2096,11 @@ def run_benchmark(
             }
             out_path = Path(output_path)
             out_path.parent.mkdir(parents=True, exist_ok=True)
+            if emit_token_rows and token_rows_output is not None:
+                partial_rows = all_token_rows + trace_result.get("token_rows", [])
+                emitted_count = write_jsonl_rows(token_rows_output, partial_rows)
+                results["token_rows_output"] = token_rows_output
+                results["token_rows_emitted"] = emitted_count
             out_path.write_text(json.dumps(results, indent=2))
             failure = results["non_finite_failure"]
             raise RuntimeError(
@@ -1834,6 +2108,9 @@ def run_benchmark(
                 f"step {failure['step_index']} stage={failure['stage']}. "
                 f"Partial results written to {out_path}."
             )
+        if emit_token_rows:
+            all_token_rows.extend(trace_result.get("token_rows", []))
+            trace_result.pop("token_rows", None)
         prompt_result = build_prompt_summary(trace_result, is_warmup=is_warmup)
         results["prompt_results"].append(prompt_result)
 
@@ -1849,6 +2126,10 @@ def run_benchmark(
     aggregate_bundle = aggregate_prompt_results(results["prompt_results"], exit_layers)
     results.update(aggregate_bundle)
     results["status"] = "ok"
+    if emit_token_rows and token_rows_output is not None:
+        emitted_count = write_jsonl_rows(token_rows_output, all_token_rows)
+        results["token_rows_output"] = token_rows_output
+        results["token_rows_emitted"] = emitted_count
 
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1856,6 +2137,8 @@ def run_benchmark(
 
     print(f"\n{'=' * 60}")
     print(f"Results written to {out_path}")
+    if emit_token_rows and token_rows_output is not None:
+        print(f"Token rows written to {token_rows_output} ({results['token_rows_emitted']} rows)")
     print(f"Aggregates ({results['aggregates_scope']}):")
     for layer_idx in exit_layers:
         layer_label = f"L{layer_idx}"
@@ -1879,9 +2162,17 @@ def run_debug_trace(
     max_new_tokens: int,
     blend_alpha: float,
     oracle_config: Optional[OracleConfig] = None,
+    emit_token_rows: bool = False,
+    token_rows_output: Optional[str] = None,
+    relation_topk: int = 5,
 ):
     parts = get_model_parts(model)
     exit_layers = normalize_exit_layers(exit_layers, parts.num_layers)
+    if emit_token_rows:
+        validate_relation_topk(relation_topk)
+        validate_token_row_exit_layers(exit_layers)
+        if not token_rows_output:
+            raise ValueError("--emit-token-rows requires --token-rows-output")
     oracle_config = oracle_config or OracleConfig(
         modes=list(DEFAULT_ORACLE_MODES),
         margin_threshold=0.0,
@@ -1894,6 +2185,7 @@ def run_debug_trace(
     trace_result = run_shared_context_decode(
         parts=parts,
         tokenizer=tokenizer,
+        model_name=model_name,
         prompt_id=prompt_id,
         prompt_text=prompt_text,
         exit_layers=exit_layers,
@@ -1901,6 +2193,8 @@ def run_debug_trace(
         blend_alpha=blend_alpha,
         include_trace=True,
         oracle_config=oracle_config,
+        emit_token_rows=emit_token_rows,
+        relation_topk=relation_topk,
     )
     trace_result["debug_mode"] = True
     trace_result["model"] = model_name
@@ -1913,11 +2207,21 @@ def run_debug_trace(
     if model_reference is not None:
         trace_result["model_reference"] = model_reference
 
+    token_rows = trace_result.pop("token_rows", [])
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    if emit_token_rows and token_rows_output is not None:
+        emitted_count = write_jsonl_rows(token_rows_output, token_rows)
+        trace_result["token_rows_output"] = token_rows_output
+        trace_result["token_rows_emitted"] = emitted_count
     out_path.write_text(json.dumps(trace_result, indent=2))
 
     print(f"\nDebug trace written to {out_path}")
+    if emit_token_rows and token_rows_output is not None:
+        print(
+            f"Token rows written to {token_rows_output} "
+            f"({trace_result['token_rows_emitted']} rows)"
+        )
     if trace_result.get("status") != "ok":
         failure = trace_result["non_finite_failure"]
         print(
@@ -2041,6 +2345,25 @@ def main():
         ),
     )
     parser.add_argument(
+        "--emit-token-rows",
+        action="store_true",
+        help=(
+            "Write one JSONL relation row per generated token for the current "
+            "two-exit-layer setup."
+        ),
+    )
+    parser.add_argument(
+        "--token-rows-output",
+        type=str,
+        help="Output JSONL path for token-level relation rows.",
+    )
+    parser.add_argument(
+        "--relation-topk",
+        type=int,
+        default=5,
+        help="Top-k size for adjacent-layer overlap features (default: 5).",
+    )
+    parser.add_argument(
         "--debug-trace",
         action="store_true",
         help="Write a single-prompt per-token trace using the manual reference path.",
@@ -2068,6 +2391,9 @@ def main():
             max_new_tokens=args.max_new_tokens,
             blend_alpha=args.blend_alpha,
             oracle_config=oracle_config,
+            emit_token_rows=args.emit_token_rows,
+            token_rows_output=args.token_rows_output,
+            relation_topk=args.relation_topk,
         )
         return
 
@@ -2082,6 +2408,9 @@ def main():
         max_new_tokens=args.max_new_tokens,
         blend_alpha=args.blend_alpha,
         oracle_config=oracle_config,
+        emit_token_rows=args.emit_token_rows,
+        token_rows_output=args.token_rows_output,
+        relation_topk=args.relation_topk,
     )
 
 

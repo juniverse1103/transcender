@@ -9,6 +9,9 @@ external-validity work:
 - raw_exit_avg_exact_match by tested layer
 - composed_avg_exact_match by tested layer
 - avg_top1_agreement_rate by tested layer
+- oracle aggregate acceptance summaries when present
+- first-divergence aggregate summaries when present
+- earliest-correct headroom over penultimate top1_agree when present
 - whether penultimate raw exit is consistently at least as strong as the
   previous layer
 """
@@ -37,6 +40,9 @@ def compact_record(path: Path) -> Dict[str, Any]:
         "model": summary.get("model"),
         "model_family": summary.get("model_family"),
         "layers": summary["layers"],
+        "oracle_aggregates": summary.get("oracle_aggregates", {}),
+        "first_divergence_aggregates": summary.get("first_divergence_aggregates", {}),
+        "oracle_headroom_summary": summary.get("oracle_headroom_summary", {}),
         "penultimate_vs_previous_raw_exit": comparison,
     }
 
@@ -66,6 +72,51 @@ def main() -> None:
                 f"  {label}: raw_exit_avg_exact_match={layer['raw_exit_avg_exact_match']:.3f}  "
                 f"composed_avg_exact_match={layer['composed_avg_exact_match']:.3f}  "
                 f"avg_top1_agreement_rate={layer['avg_top1_agreement_rate']:.3f}"
+            )
+        if record["oracle_aggregates"]:
+            print("  Oracle aggregates:")
+            for mode, mode_summary in record["oracle_aggregates"].items():
+                if mode_summary.get("kind") == "single_layer":
+                    for layer_label, layer_summary in mode_summary["per_layer"].items():
+                        print(
+                            f"    {mode} {layer_label}: "
+                            f"avg_acceptance_rate={layer_summary['avg_acceptance_rate']:.3f}  "
+                            f"avg_oracle_EM={layer_summary['avg_oracle_composed_exact_match']:.3f}"
+                        )
+                    continue
+                if mode_summary.get("available", True) is False:
+                    print(f"    {mode}: unavailable")
+                    continue
+                print(
+                    f"    {mode}: "
+                    f"avg_acceptance_rate={mode_summary['avg_acceptance_rate']:.3f}  "
+                    f"avg_oracle_EM={mode_summary['avg_oracle_composed_exact_match']:.3f}"
+                )
+
+        first_divergence = record.get("first_divergence_aggregates", {})
+        if first_divergence.get("per_layer"):
+            print("  First divergence aggregates:")
+            for layer_label, row in first_divergence["per_layer"].items():
+                print(
+                    f"    {layer_label}: "
+                    f"mean={row['raw_first_divergence_mean']:.3f}  "
+                    f"median={row['raw_first_divergence_median']:.3f}"
+                )
+            pair_div = first_divergence.get("penultimate_vs_previous", {})
+            if pair_div.get("available"):
+                print(
+                    "    penultimate_vs_previous: "
+                    f"{pair_div['penultimate_label']} later on "
+                    f"{pair_div['penultimate_diverges_later_count']}/{pair_div['total_prompts']} prompts"
+                )
+
+        headroom = record.get("oracle_headroom_summary", {})
+        if headroom.get("available"):
+            print(
+                "  Oracle headroom: "
+                f"earliest_correct_vs_{headroom['penultimate_label']}_top1_agree "
+                f"avg_gap={headroom['avg_acceptance_gap']:.3f}  "
+                f"micro_gap={headroom['micro_acceptance_gap']:.3f}"
             )
 
         comparison = record["penultimate_vs_previous_raw_exit"]
