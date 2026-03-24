@@ -210,7 +210,7 @@ This path now also supports oracle-style final-aware summaries, token-level rela
 
 **Architecture + validation status**
 - Sparse MoE:
-  - `Qwen/Qwen3-30B-A3B` — empirically validated GPU baseline
+  - `Qwen/Qwen3-30B-A3B` — empirically validated GPU baseline; also validated on NVIDIA H200 (float16, N=63 L45=0.832 L46=0.916)
   - `openai/gpt-oss-20b` — empirically validated sparse external-validity result
   - `mistralai/Mixtral-8x7B-Instruct-v0.1` — empirically validated sparse-MoE extension
 - Dense:
@@ -237,6 +237,8 @@ For command examples, note that `openai/gpt-oss-20b` should currently be run wit
 - `meta-llama/Llama-3.1-8B-Instruct` has not been run on this GPU Track A path yet. The model remains blocked by gated Hugging Face access, so it should not be described as empirically validated here.
 
 Taken together, the current dense-side GPU evidence is checkpoint-specific rather than a universal dense-family law: Gemma 3 `4B` is decent, `12B` is weak, and `27B` is strong; Mistral 7B remains the clean first dense control; Llama is still pending because of access rather than because the code path is missing.
+
+**Cross-runtime note on quality cliffs:** The canonical MLX Qwen3 result shows a sharp cliff from L46 (0.837) to L45 (0.463). On the GPU path, the same layers show a much milder drop: L46=0.916 to L45=0.832. The penultimate advantage is structural (holds on both runtimes), but the cliff severity appears runtime-sensitive. GPT-OSS shows a similar pattern: MLX L22=0.870 vs GPU L22=0.879 at the penultimate layer, but the one-layer-earlier quality is materially different (MLX L21=0.703 vs GPU L21=0.808). These differences are consistent with the Limitations caveat that absolute metrics are runtime-specific.
 
 **Metric semantics**
 - `raw_exit_*`: raw intermediate-layer candidate tokens compared against full depth under shared full-depth context. This is the primary diagnostic metric for whether the tested exit layers genuinely diverge from the final layer.

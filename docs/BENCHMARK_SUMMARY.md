@@ -99,6 +99,19 @@ How to read this summary:
 
 ---
 
+## GPU External Validity (Off-MLX Diagnostic)
+
+Off-MLX structural reproductions on an NVIDIA H200 (transformers 5.3.0.dev0) confirm the penultimate-layer frontier on both MoE families:
+
+| Model | Exit Layers | GPU raw_exit_EM | MLX raw_exit_EM | Dtype |
+|-------|-------------|----------------|----------------|-------|
+| GPT-OSS 20B | L21 / L22 | 0.808 / **0.879** | 0.703 / **0.870** | bfloat16 |
+| Qwen3-30B-A3B | L45 / L46 | 0.832 / **0.916** | 0.463 / **0.837** | float16 |
+
+**Interpretation:** The penultimate advantage (L_penultimate > L_earlier) holds on both runtimes. Absolute quality is higher on GPU for both models. The sharp quality cliff seen on MLX (especially Qwen3 L46→L45: 0.837→0.463) is materially softer on GPU (0.916→0.832). Frontier structure is robust off-MLX; cliff severity is runtime-sensitive. These are structural diagnostics, not serving benchmarks.
+
+---
+
 ## Current Release Takeaway
 
 - A viable penultimate-layer selective-exit frontier appears on both tested sparse MoE families.

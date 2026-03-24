@@ -298,7 +298,7 @@ These results broaden the dense benchmark finding beyond Gemma, but do not justi
 
 \item \textbf{Track B scope.} The cascade result is specific to a naive implementation, one model pair, and one local runtime. It should not be generalized to speculative decoding as a class of methods.
 
-\item \textbf{Runtime dependence.} All throughput, latency, and memory measurements are specific to a single Apple M1 Pro system using MLX. Direct comparison to GPU-based inference is not appropriate. An off-MLX structural reproduction on an NVIDIA H200 GPU (bfloat16, transformers 5.3.0.dev0) confirms the penultimate-layer frontier pattern on GPT-OSS 20B: N=63 raw-exit exact match $0.808$ at L21 and $0.879$ at L22, closely tracking the canonical MLX L22 result of $0.870$. This partially alleviates the single-runtime concern for frontier structure, though absolute metrics remain runtime-sensitive.
+\item \textbf{Runtime dependence.} All throughput, latency, and memory measurements are specific to a single Apple M1 Pro system using MLX. Direct comparison to GPU-based inference is not appropriate. Off-MLX structural reproductions on an NVIDIA H200 GPU (transformers 5.3.0.dev0) confirm the penultimate-layer frontier pattern on both tested MoE families: GPT-OSS~20B gives N=63 raw-exit exact match $0.808$ at L21 and $0.879$ at L22 (bfloat16), closely tracking the canonical MLX L22 result of $0.870$; Qwen3-30B-A3B gives $0.832$ at L45 and $0.916$ at L46 (float16), with the penultimate advantage holding across all 63 prompts. Notably, the sharp quality cliff seen on MLX (Qwen3 drops from $0.837$ to $0.463$ at L45) is materially softer on GPU ($0.916$ to $0.832$), confirming that frontier structure is robust off-MLX while cliff severity is runtime-sensitive.
 
 \item \textbf{Evaluation scale.} Track~A uses 63 scored prompts across six categories, but the paper's direct cross-track comparisons still rely on a small matched expository subset with four scored prompts after warmup. This is sufficient for directional findings but insufficient for statistical confidence intervals.
 
@@ -497,6 +497,9 @@ python scripts/track_a_gpu/summarize_karma_results.py \
 
 \item \texttt{artifacts/track\_a\_gpu/gpt\_oss\_20b\_gpu\_reproduction\_n63\_bf16.json}:
   Off-MLX GPU structural reproduction of GPT-OSS 20B on NVIDIA H200 (bfloat16). N=63 raw-exit exact match $0.808$ at L21 and $0.879$ at L22. Diagnostic only; not a replacement for the canonical MLX Track~A artifacts.
+
+\item \texttt{artifacts/track\_a\_gpu/qwen3\_30b\_a3b\_gpu\_reproduction\_n63.json}:
+  Off-MLX GPU structural reproduction of Qwen3-30B-A3B on NVIDIA H200 (float16). N=63 raw-exit exact match $0.832$ at L45 and $0.916$ at L46. Penultimate advantage confirmed; quality cliff softer than on MLX.
 \end{itemize}
 }
 

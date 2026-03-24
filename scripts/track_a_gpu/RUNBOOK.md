@@ -94,7 +94,7 @@ The GPU path is for structural validation only. It is not canonical paper eviden
 
 | Model / checkpoint | Status on this GPU path | Notes |
 |---|---|---|
-| `Qwen/Qwen3-30B-A3B` | Empirically validated | Current GPU manual-reference baseline; use this to confirm the path is sane before expanding |
+| `Qwen/Qwen3-30B-A3B` | Empirically validated | Current GPU manual-reference baseline; also validated on NVIDIA H200 (float16, N=63 L45=0.832 L46=0.916) |
 | `openai/gpt-oss-20b` | Empirically validated | Verified with `--quantize none --exit-layers 21 22` on NVIDIA H200 (bfloat16); canonical sparse supporting evidence on this GPU path |
 | `mistralai/Mixtral-8x7B-Instruct-v0.1` | Empirically validated | Verified with `--quantize 4bit --exit-layers 29 30`; very clean monotonic penultimate advantage |
 
@@ -113,6 +113,7 @@ Gemma 3 should be discussed as a dense family with checkpoint-specific size vari
 
 ## Current Verified Outcomes
 
+- `Qwen/Qwen3-30B-A3B` with `--quantize none --exit-layers 45 46` on NVIDIA H200 (float16): sane trace; N=63 raw-exit exact match `0.832` at `L45` and `0.916` at `L46`; `L46` penultimate advantage confirmed across all 63 prompts. The quality cliff is materially softer on GPU (0.916→0.832) than on the canonical MLX path (0.837→0.463), confirming that frontier structure is robust off-MLX while cliff severity is runtime-sensitive.
 - `openai/gpt-oss-20b` with `--quantize none --exit-layers 21 22` on NVIDIA H200 (bfloat16): sane trace; N=63 raw-exit exact match `0.808` at `L21` and `0.879` at `L22`. The model ships MXFP4-quantized weights that transformers dequantizes to bfloat16; `resolve_manual_reference_load_dtype` now detects this and matches the dtype automatically. Earlier fp16 runs hit a `grouped_mm` dtype mismatch in the MoE path.
 - `mistralai/Mixtral-8x7B-Instruct-v0.1` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match `0.667` at `L29` and `0.837` at `L30`; `L30` is at least as strong as `L29` on `63/63` prompts and strictly better on `63/63`.
 - `mistralai/Mistral-7B-Instruct-v0.3` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match `0.715` at `L29` and `0.864` at `L30`; `L30` is at least as strong as `L29` on `63/63` prompts and strictly better on `62/63`.
