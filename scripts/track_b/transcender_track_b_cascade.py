@@ -20,21 +20,16 @@ This is a cost-structure benchmark, not a production speculative decoder.
 from __future__ import annotations
 
 import gc
+import json
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import mlx.core as mx
-from mlx_lm import load as mlx_load
-from mlx_lm.generate import generate_step
-from mlx_lm.sample_utils import make_sampler
-
-from transcender_engine import (
-    apply_harmony_template,
-    build_harmony_messages,
-    load_resolved_mlx_model,
-)
+TRACK_A_DIR = Path(__file__).resolve().parents[1] / "track_a"
+if str(TRACK_A_DIR) not in sys.path:
+    sys.path.insert(0, str(TRACK_A_DIR))
 
 
 DEFAULT_LARGE_MODEL_PATH = str(
@@ -43,12 +38,19 @@ DEFAULT_LARGE_MODEL_PATH = str(
 DEFAULT_OUTPUT_PATH = str(
     (Path(__file__).resolve().parent / "transcender_track_b_benchmark.json").resolve()
 )
+DEFAULT_PROMPT_SUITE = "expository_5"
 SYSTEM_PROMPT = "You are a helpful assistant."
 REASONING_EFFORT = "medium"
 WARMUP_PROMPT_INDEX = 0
 DEFAULT_MAX_NEW_TOKENS = 48
 DEFAULT_DRAFT_CHUNK_TOKENS = 8
 DEFAULT_PREFILL_STEP_SIZE = 2048
+CANONICAL_TRACK_A_PROMPTS_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "artifacts"
+    / "track_a"
+    / "transcender_exit_layer_benchmark_n63.json"
+)
 
 PROMPTS = [
     "Explain quantum entanglement in simple terms.",
@@ -77,6 +79,119 @@ class CascadeConfig:
     draft_chunk_tokens: int = DEFAULT_DRAFT_CHUNK_TOKENS
     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS
     prefill_step_size: int = DEFAULT_PREFILL_STEP_SIZE
+
+
+def require_mlx_runtime():
+    import mlx.core as mx
+    from mlx_lm import load as mlx_load
+    from mlx_lm.generate import generate_step
+    from mlx_lm.sample_utils import make_sampler
+
+    return mx, mlx_load, generate_step, make_sampler
+
+
+def require_track_a_engine():
+    from transcender_engine import (
+        apply_harmony_template,
+        build_harmony_messages,
+        load_resolved_mlx_model,
+    )
+
+    return apply_harmony_template, build_harmony_messages, load_resolved_mlx_model
+
+
+def parse_prompt_ids(prompt_ids_arg: Optional[str]) -> Optional[List[str]]:
+    if prompt_ids_arg is None:
+        return None
+    prompt_ids = [item.strip() for item in prompt_ids_arg.split(",") if item.strip()]
+    if not prompt_ids:
+        raise ValueError("--prompt-ids must contain at least one prompt id")
+    return prompt_ids
+
+
+def legacy_expository_prompt_defs() -> List[Dict[str, str]]:
+    return [
+        {
+            "prompt_id": f"P{index}",
+            "system": SYSTEM_PROMPT,
+            "user": user_prompt,
+        }
+        for index, user_prompt in enumerate(PROMPTS, start=1)
+    ]
+
+
+def canonical_track_a_prompt_defs() -> List[Dict[str, str]]:
+    if not CANONICAL_TRACK_A_PROMPTS_PATH.exists():
+        raise FileNotFoundError(
+            "Canonical Track A prompt artifact is missing: "
+            f"{CANONICAL_TRACK_A_PROMPTS_PATH}"
+        )
+    payload = json.loads(CANONICAL_TRACK_A_PROMPTS_PATH.read_text())
+    prompt_defs: List[Dict[str, str]] = []
+    for prompt_def in payload.get("prompts", []):
+        prompt_id = prompt_def.get("prompt_id")
+        user_prompt = prompt_def.get("user")
+        if not prompt_id or not user_prompt:
+            raise ValueError(
+                "Canonical Track A prompt artifact is missing prompt_id/user fields"
+            )
+        prompt_defs.append(
+            {
+                "prompt_id": str(prompt_id),
+                "system": str(prompt_def.get("system", SYSTEM_PROMPT)),
+                "user": str(user_prompt),
+            }
+        )
+    if not prompt_defs:
+        raise ValueError("Canonical Track A prompt artifact contains no prompts")
+    return prompt_defs
+
+
+def resolve_prompt_definitions(
+    prompt_suite: str = DEFAULT_PROMPT_SUITE,
+    prompt_ids_arg: Optional[str] = None,
+) -> Tuple[List[Dict[str, str]], Dict[str, Any]]:
+    if prompt_suite == "expository_5":
+        prompt_defs = legacy_expository_prompt_defs()
+        prompt_source = "track_b_builtin_expository_5"
+    elif prompt_suite == "canonical_64":
+        prompt_defs = canonical_track_a_prompt_defs()
+        prompt_source = str(CANONICAL_TRACK_A_PROMPTS_PATH)
+    else:
+        raise ValueError(f"Unknown prompt suite: {prompt_suite}")
+
+    selected_prompt_ids = parse_prompt_ids(prompt_ids_arg)
+    selection_mode = "full_suite"
+    if selected_prompt_ids is not None:
+        prompt_by_id = {item["prompt_id"]: item for item in prompt_defs}
+        missing = [prompt_id for prompt_id in selected_prompt_ids if prompt_id not in prompt_by_id]
+        if missing:
+            raise ValueError(
+                "Unknown prompt ids for selected suite: " + ", ".join(missing)
+            )
+        selected_ids = set(selected_prompt_ids)
+        prompt_defs = [item for item in prompt_defs if item["prompt_id"] in selected_ids]
+        selection_mode = "prompt_id_filter"
+
+    selected_ids_in_order = [item["prompt_id"] for item in prompt_defs]
+    if not selected_ids_in_order:
+        raise ValueError("Prompt selection resolved to zero prompts")
+
+    prompt_scope = {
+        "prompt_suite": prompt_suite,
+        "prompt_source": prompt_source,
+        "selection_mode": selection_mode,
+        "selected_prompt_ids": selected_ids_in_order,
+        "selected_prompt_count": len(selected_ids_in_order),
+        "warmup_prompt_id": selected_ids_in_order[WARMUP_PROMPT_INDEX],
+        "scored_prompt_count_after_warmup": max(len(selected_ids_in_order) - 1, 0),
+        "scope_label": (
+            prompt_suite
+            if selection_mode == "full_suite"
+            else f"{prompt_suite}__{'_'.join(selected_ids_in_order)}"
+        ),
+    }
+    return prompt_defs, prompt_scope
 
 
 def mean(values: List[float]) -> float:
@@ -242,13 +357,22 @@ def apply_generic_chat_template(
         return prompt, "tokenizer_chat_template_no_add_generation_prompt"
 
 
-def build_prompt_pack(large_tokenizer) -> List[Dict[str, Any]]:
+def build_prompt_pack(
+    large_tokenizer,
+    prompt_definitions: Optional[List[Dict[str, str]]] = None,
+) -> List[Dict[str, Any]]:
+    apply_harmony_template, build_harmony_messages, _ = require_track_a_engine()
+    prompt_definitions = (
+        prompt_definitions if prompt_definitions is not None else legacy_expository_prompt_defs()
+    )
     prompt_pack: List[Dict[str, Any]] = []
-    for prompt_index, user_prompt in enumerate(PROMPTS, start=1):
-        prompt_id = f"P{prompt_index}"
+    for prompt_def in prompt_definitions:
+        prompt_id = prompt_def["prompt_id"]
+        system_prompt = prompt_def.get("system", SYSTEM_PROMPT)
+        user_prompt = prompt_def["user"]
         messages = build_harmony_messages(
             user_prompt=user_prompt,
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=system_prompt,
         )
         large_prompt_text, _ = apply_harmony_template(
             large_tokenizer,
@@ -258,7 +382,7 @@ def build_prompt_pack(large_tokenizer) -> List[Dict[str, Any]]:
         prompt_pack.append(
             {
                 "prompt_id": prompt_id,
-                "system": SYSTEM_PROMPT,
+                "system": system_prompt,
                 "user": user_prompt,
                 "messages": messages,
                 "large_prompt_text": large_prompt_text,
@@ -280,6 +404,7 @@ def enrich_prompt_pack_for_draft(prompt_pack: List[Dict[str, Any]], draft_tokeni
 
 
 def release_models(*objects: Any):
+    mx, _, _, _ = require_mlx_runtime()
     for obj in objects:
         del obj
     gc.collect()
@@ -293,6 +418,7 @@ def greedy_generate_core(
     max_new_tokens: int,
     prefill_step_size: int,
 ) -> Dict[str, Any]:
+    mx, _, generate_step, make_sampler = require_mlx_runtime()
     prompt = mx.array(prompt_ids, dtype=mx.int32)
     sampler = make_sampler(temp=0.0)
     eos_ids = set(get_eos_ids(tokenizer))
@@ -336,6 +462,7 @@ def official_greedy_generate(
     max_new_tokens: int,
     prefill_step_size: int,
 ) -> Dict[str, Any]:
+    mx, _, _, _ = require_mlx_runtime()
     mx.clear_cache()
     mx.reset_peak_memory()
     stats = greedy_generate_core(
@@ -370,6 +497,7 @@ def naive_cascade_generate(
     verifier_prompt_text: str,
     config: CascadeConfig,
 ) -> Dict[str, Any]:
+    mx, _, _, _ = require_mlx_runtime()
     verifier_eos_ids = set(get_eos_ids(verifier_tokenizer))
     accepted_large_ids: List[int] = []
     accepted_text = ""
@@ -485,9 +613,12 @@ def naive_cascade_generate(
 
 
 def load_large_model_for_track_b(model_path: str):
+    _, _, _, _ = require_mlx_runtime()
+    _, _, load_resolved_mlx_model = require_track_a_engine()
     return load_resolved_mlx_model(model_path, lazy=True)
 
 
 def load_draft_model_for_track_b(model_path: str):
+    _, mlx_load, _, _ = require_mlx_runtime()
     model, tokenizer = mlx_load(model_path, lazy=True)
     return model, tokenizer

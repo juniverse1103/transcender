@@ -1,31 +1,35 @@
 """
 Track B benchmark runner.
 
-Compares four modes on the same five-prompt suite:
+Compares four modes on the same selected prompt suite:
   1. Draft model alone
   2. GPT-OSS 20B full-depth baseline
   3. Naive Track B cascade (draft + verifier)
   4. Track A frontier (L22 top1_agree)
 
-This runner is intentionally explicit and sequential so memory comparisons stay
-interpretable. Each mode loads only the models it needs.
+Default behavior preserves the original five-prompt expository subset. The CLI
+also supports canonical Track A prompt reuse and prompt-id filtering for
+matched-scope reruns.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from transcender_engine import GptOssConfig, MLXDynamicExpertEngine
+TRACK_A_DIR = Path(__file__).resolve().parents[1] / "track_a"
+if str(TRACK_A_DIR) not in sys.path:
+    sys.path.insert(0, str(TRACK_A_DIR))
 from transcender_track_b_cascade import (
     DEFAULT_LARGE_MODEL_PATH,
     DEFAULT_OUTPUT_PATH,
     DEFAULT_MAX_NEW_TOKENS,
+    DEFAULT_PROMPT_SUITE,
     CascadeConfig,
-    PROMPTS,
     REASONING_EFFORT,
     SYSTEM_PROMPT,
     WARMUP_PROMPT_INDEX,
@@ -41,6 +45,7 @@ from transcender_track_b_cascade import (
     official_greedy_generate,
     preview_text,
     release_models,
+    resolve_prompt_definitions,
 )
 
 
@@ -110,6 +115,12 @@ def build_mode_specs() -> List[ModeSpec]:
 def print_summary(payload: Dict[str, Any], output_path: str):
     print("\nTranscender Track B Comparison")
     print(f"JSON output: {output_path}")
+    prompt_scope = payload.get("prompt_scope", {})
+    print(
+        f"Prompt suite: {prompt_scope.get('prompt_suite', 'unknown')} | "
+        f"selected prompts: {prompt_scope.get('selected_prompt_count', 0)} | "
+        f"scored after warmup: {prompt_scope.get('scored_prompt_count_after_warmup', 0)}"
+    )
     print(
         f"Warmup-corrected aggregate excludes prompt "
         f"{payload['prompts'][WARMUP_PROMPT_INDEX]['prompt_id']}"
@@ -152,11 +163,12 @@ def print_summary(payload: Dict[str, Any], output_path: str):
 def run_large_baseline(
     large_model_path: str,
     max_new_tokens: int,
+    prompt_definitions: List[Dict[str, str]],
 ) -> Dict[str, Any]:
     large_model, large_tokenizer, resolved_large_model_path = load_large_model_for_track_b(
         large_model_path
     )
-    prompt_pack = build_prompt_pack(large_tokenizer)
+    prompt_pack = build_prompt_pack(large_tokenizer, prompt_definitions)
     prompt_results: List[Dict[str, Any]] = []
     for prompt_def in prompt_pack:
         stats = official_greedy_generate(
@@ -187,6 +199,7 @@ def run_large_baseline(
                     "exact_match_rate": 1.0,
                     "first_divergence_position": None,
                     "passed": True,
+                    "comparison_space": "gpt_oss_verifier_token_space",
                 },
             }
         )
@@ -203,11 +216,13 @@ def run_track_a_mode(
     large_model_path: str,
     max_new_tokens: int,
     baseline_results_by_prompt: Dict[str, Dict[str, Any]],
+    prompt_pack_seed: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
+    from transcender_engine import GptOssConfig, MLXDynamicExpertEngine
+
     large_model, large_tokenizer, resolved_large_model_path = load_large_model_for_track_b(
         large_model_path
     )
-    prompt_pack = build_prompt_pack(large_tokenizer)
     engine = MLXDynamicExpertEngine(
         model=large_model,
         tokenizer=large_tokenizer,
@@ -230,7 +245,7 @@ def run_track_a_mode(
     )
 
     prompt_results: List[Dict[str, Any]] = []
-    for prompt_def in prompt_pack:
+    for prompt_def in prompt_pack_seed:
         stats = engine.generate_from_ids(
             prompt_def["large_prompt_ids"],
             max_new_tokens=max_new_tokens,
@@ -262,6 +277,7 @@ def run_track_a_mode(
                 "avg_layers_saved": max(24.0 - stats.get("avg_layers", 24.0), 0.0),
             }
         )
+        prompt_results[-1]["comparison"]["comparison_space"] = "gpt_oss_verifier_token_space"
     release_models(engine, large_model, large_tokenizer)
     return {
         "resolved_large_model_path": resolved_large_model_path,
@@ -337,7 +353,17 @@ def run_track_b_mode(
         large_model_path
     )
     draft_model, draft_tokenizer = load_draft_model_for_track_b(draft_model_path)
-    prompt_pack = build_prompt_pack(large_tokenizer)
+    prompt_pack = [
+        {
+            "prompt_id": item["prompt_id"],
+            "system": item["system"],
+            "user": item["user"],
+            "messages": item["messages"],
+            "large_prompt_text": item["large_prompt_text"],
+            "large_prompt_ids": item["large_prompt_ids"],
+        }
+        for item in prompt_pack_seed
+    ]
     enrich_prompt_pack_for_draft(prompt_pack, draft_tokenizer)
 
     config = CascadeConfig(
@@ -384,6 +410,7 @@ def run_track_b_mode(
                 },
             }
         )
+        prompt_results[-1]["comparison"]["comparison_space"] = "gpt_oss_verifier_token_space"
     release_models(draft_model, draft_tokenizer, large_model, large_tokenizer)
     return {
         "resolved_large_model_path": resolved_large_model_path,
@@ -396,16 +423,39 @@ def main():
     parser.add_argument("--large-model", default=DEFAULT_LARGE_MODEL_PATH)
     parser.add_argument("--draft-model", default=None)
     parser.add_argument("--output", default=DEFAULT_OUTPUT_PATH)
+    parser.add_argument(
+        "--prompt-suite",
+        choices=("expository_5", "canonical_64"),
+        default=DEFAULT_PROMPT_SUITE,
+        help=(
+            "Prompt scope for the benchmark. "
+            "'expository_5' preserves legacy behavior. "
+            "'canonical_64' reuses the canonical Track A prompt definitions from the checked-in artifact."
+        ),
+    )
+    parser.add_argument(
+        "--prompt-ids",
+        default=None,
+        help=(
+            "Optional comma-separated prompt ids to filter within the selected suite, "
+            "for example 'P1,P2,P3,P4,P5'. Warmup still excludes the first selected prompt."
+        ),
+    )
     parser.add_argument("--max-new-tokens", type=int, default=DEFAULT_MAX_NEW_TOKENS)
     parser.add_argument("--draft-chunk-tokens", type=int, default=8)
     args = parser.parse_args()
 
+    prompt_definitions, prompt_scope = resolve_prompt_definitions(
+        prompt_suite=args.prompt_suite,
+        prompt_ids_arg=args.prompt_ids,
+    )
     draft_model_path, draft_detection = auto_detect_draft_model(args.draft_model)
 
     # Baseline first so every other mode has the same source of truth.
     baseline_run = run_large_baseline(
         large_model_path=args.large_model,
         max_new_tokens=args.max_new_tokens,
+        prompt_definitions=prompt_definitions,
     )
     baseline_prompt_results = baseline_run["prompt_results"]
     baseline_results_by_prompt = {
@@ -512,6 +562,7 @@ def main():
         large_model_path=args.large_model,
         max_new_tokens=args.max_new_tokens,
         baseline_results_by_prompt=baseline_results_by_prompt,
+        prompt_pack_seed=baseline_prompt_pack,
     )
     track_a_prompt_results = track_a_run["prompt_results"]
     track_a_included = [
@@ -582,11 +633,17 @@ def main():
         "resolved_large_model_path": baseline_run["resolved_large_model_path"],
         "draft_model_detection": draft_detection,
         "draft_model_path": draft_model_path,
+        "prompt_scope": prompt_scope,
         "settings": {
             "max_new_tokens": args.max_new_tokens,
             "draft_chunk_tokens": args.draft_chunk_tokens,
             "reasoning_effort_large_model": REASONING_EFFORT,
             "warmup_discard_prompt_id": baseline_prompt_pack[WARMUP_PROMPT_INDEX]["prompt_id"],
+            "prompt_suite": prompt_scope["prompt_suite"],
+            "prompt_scope_label": prompt_scope["scope_label"],
+            "selected_prompt_ids": prompt_scope["selected_prompt_ids"],
+            "selected_prompt_count": prompt_scope["selected_prompt_count"],
+            "scored_prompt_count_after_warmup": prompt_scope["scored_prompt_count_after_warmup"],
             "notes": (
                 "GPT-OSS uses Harmony. The auxiliary draft model uses its own tokenizer chat template path. "
                 "Track B is a naive chunked verifier loop with no KV sharing."
