@@ -60,8 +60,9 @@ This GPU path spans both architecture classes:
 
 Validation status is narrower than code-path support:
 
-- empirically validated baseline on this GPU path: Qwen3-30B-A3B
-- code-path supported, pending real runs: GPT-OSS, Mixtral, Mistral, Llama, older Gemma/Gemma2 text checkpoints, and Gemma 3 text checkpoints by size
+- empirically validated on this GPU path: Qwen3-30B-A3B baseline, GPT-OSS 20B sparse external-validity result, Mixtral-8x7B sparse-MoE extension, Mistral-7B dense control, and Gemma 3 checkpoint-specific dense-family evidence across `4B`, `12B`, and `27B` with uneven strength (`4B` decent, `12B` weak, `27B` strong)
+- blocked by model access on this GPU path: Llama 3.1 8B Instruct via Hugging Face gated access
+- code-path supported, pending real runs: older Gemma/Gemma2 text checkpoints
 
 Gemma 3 should be read as a dense family with checkpoint-specific size variants such as `google/gemma-3-4b-it`, `google/gemma-3-12b-it`, and `google/gemma-3-27b-it`, not as one undifferentiated model. Multimodal Gemma 3 checkpoints are intentionally out of scope for this manual-reference path.
 

@@ -7,11 +7,11 @@ Run the cheapest credible off-MLX reproduction of the Track A penultimate-layer 
 This is an external-validity test, not a serving benchmark:
 
 - first empirically validated GPU baseline: Qwen3-30B-A3B
-- first sparse-MoE external-validity target: GPT-OSS 20B
-- second sparse-MoE target: Mixtral-8x7B-Instruct-v0.1
-- first dense control: Mistral-7B-Instruct-v0.3
+- canonical sparse supporting evidence beyond Qwen3: GPT-OSS 20B
+- strong sparse-MoE generalization: Mixtral-8x7B-Instruct-v0.1
+- strong first dense control: Mistral-7B-Instruct-v0.3
 - Gemma 3 dense controls should be treated as checkpoint-specific size variants:
-  - `google/gemma-3-4b-it` for a cheap dense control
+  - `google/gemma-3-4b-it` now provides genuine dense-family supporting evidence on this path
   - `google/gemma-3-12b-it` for a mid-scale dense control
   - `google/gemma-3-27b-it` for a large dense control
 - runtime: HuggingFace Transformers on CUDA
@@ -55,6 +55,7 @@ Keep two axes separate:
 - validation status:
   - empirically validated on this GPU manual-reference path
   - code-path supported, pending real runs
+  - blocked by model access
 
 The GPU path is for structural validation only. It is not canonical paper evidence, it is not a serving-speed benchmark, and `composed_exact_match = 1.0` is not the main frontier claim.
 
@@ -65,21 +66,33 @@ The GPU path is for structural validation only. It is not canonical paper eviden
 | Model / checkpoint | Status on this GPU path | Notes |
 |---|---|---|
 | `Qwen/Qwen3-30B-A3B` | Empirically validated | Current GPU manual-reference baseline; use this to confirm the path is sane before expanding |
-| `openai/gpt-oss-20b` | Code-path supported, pending real run | Highest-priority sparse external-validity target because there is also an MLX Track A reference |
-| `mistralai/Mixtral-8x7B-Instruct-v0.1` | Code-path supported, pending real run | Sparse-MoE family extension; no prior Transcender paper claim |
+| `openai/gpt-oss-20b` | Empirically validated | Verified with `--quantize none --exit-layers 21 22`; canonical sparse supporting evidence on this GPU path |
+| `mistralai/Mixtral-8x7B-Instruct-v0.1` | Empirically validated | Verified with `--quantize 4bit --exit-layers 29 30`; very clean monotonic penultimate advantage |
 
 ### Dense
 
 | Model family / checkpoint | Status on this GPU path | Notes |
 |---|---|---|
-| `mistralai/Mistral-7B-Instruct-v0.3` | Code-path supported, pending real run | Clean first dense control |
-| `meta-llama/Llama-3.1-8B-Instruct` | Code-path supported, pending real run | Dense control if gated access is available |
-| `google/gemma-3-4b-it` | Code-path supported, pending real run | Small Gemma 3 dense control |
-| `google/gemma-3-12b-it` | Code-path supported, pending real run | Mid-scale Gemma 3 dense control |
-| `google/gemma-3-27b-it` | Code-path supported, pending real run | Large Gemma 3 dense control; highest VRAM pressure |
+| `mistralai/Mistral-7B-Instruct-v0.3` | Empirically validated | Verified with `--quantize 4bit --exit-layers 29 30`; strong penultimate advantage for the first dense control |
+| `meta-llama/Llama-3.1-8B-Instruct` | Blocked by gated access | Code path is supported, but the current token still cannot download the checkpoint from Hugging Face |
+| `google/gemma-3-4b-it` | Empirically validated | Verified with `--device cuda --quantize none --exit-layers 31 32`; numerically sane dense-family supporting evidence |
+| `google/gemma-3-12b-it` | Empirically validated | Verified with `--device cuda --quantize none --exit-layers 41 42`; valid but materially weaker than the 4B and 27B checkpoints |
+| `google/gemma-3-27b-it` | Empirically validated | Verified with `--device cuda --quantize none --exit-layers 59 60`; strongest current Gemma 3 result with a clean monotonic penultimate advantage |
 | older Gemma / Gemma2 text checkpoints | Code-path supported, pending real run | Dense-family follow-up controls, not first-run targets |
 
 Gemma 3 should be discussed as a dense family with checkpoint-specific size variants, not as one undifferentiated model. For this Track A validation flow, the practical checkpoints are `4B`, `12B`, and `27B`. Smaller `270M` and `1B` Gemma 3 text checkpoints exist, but they are not the main dense-control targets here unless there is a specific reason to probe very small-scale behavior.
+
+## Current Verified Outcomes
+
+- `openai/gpt-oss-20b` with `--quantize none --exit-layers 21 22`: sane trace; N=63 raw-exit exact match `0.840` at `L21` and `0.885` at `L22`; `L22` is at least as strong as `L21` on `55/63` prompts and strictly better on `53/63`.
+- `mistralai/Mixtral-8x7B-Instruct-v0.1` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match `0.667` at `L29` and `0.837` at `L30`; `L30` is at least as strong as `L29` on `63/63` prompts and strictly better on `63/63`.
+- `mistralai/Mistral-7B-Instruct-v0.3` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match `0.715` at `L29` and `0.864` at `L30`; `L30` is at least as strong as `L29` on `63/63` prompts and strictly better on `62/63`.
+- `google/gemma-3-4b-it` with `--device cuda --quantize none --exit-layers 31 32`: sane trace and finite hidden/logit diagnostics; N=63 raw-exit exact match `0.833` at `L31` and `0.900` at `L32`; `L32` is at least as strong as `L31` on `58/63` prompts and strictly better on `54/63`.
+- `google/gemma-3-12b-it` with `--device cuda --quantize none --exit-layers 41 42`: sane trace and finite hidden/logit diagnostics; N=63 raw-exit exact match `0.528` at `L41` and `0.562` at `L42`; `L42` is at least as strong as `L41` on `54/63` prompts and strictly better on `46/63`. This is valid but comparatively weak dense-family evidence.
+- `google/gemma-3-27b-it` with `--device cuda --quantize none --exit-layers 59 60`: sane trace and finite hidden/logit diagnostics; N=63 raw-exit exact match `0.813` at `L59` and `0.932` at `L60`; `L60` is at least as strong as `L59` on `63/63` prompts and strictly better on `63/63`. This is the cleanest Gemma 3 result in the current GPU Track A set.
+- `meta-llama/Llama-3.1-8B-Instruct` remains unrun on this GPU Track A path because Hugging Face access is still gated and pending review.
+
+These are structural off-MLX validation results under the manual-reference path. They do not turn this script into a serving-speed benchmark, and `composed_exact_match = 1.0` remains a fallback-path diagnostic rather than the main claim.
 
 ## What The Script Supports
 
@@ -432,7 +445,9 @@ python scripts/track_a_gpu/compare_benchmarks.py \
   artifacts/track_a_gpu/gpt_oss_20b_gpu_reproduction_n63.json \
   artifacts/track_a_gpu/mixtral_8x7b_gpu_reproduction_n63.json \
   artifacts/track_a_gpu/mistral_7b_gpu_reproduction_n63.json \
-  artifacts/track_a_gpu/gemma3_4b_gpu_reproduction_n63.json
+  artifacts/track_a_gpu/gemma3_4b_gpu_reproduction_n63.json \
+  artifacts/track_a_gpu/gemma3_12b_gpu_reproduction_n63.json \
+  artifacts/track_a_gpu/gemma3_27b_gpu_reproduction_n63.json
 ```
 
 This prints one compact per-model summary with:
@@ -443,7 +458,7 @@ This prints one compact per-model summary with:
 
 ## Example Commands By Model
 
-These examples all rely on the script's default exit-layer behavior, so you do not need to hard-code layer indices for each architecture. Only Qwen3 is empirically validated on this GPU path today; the other commands below are execution-ready examples for code-path-supported checkpoints.
+These examples pin the exact verified command paths for the currently checked models. The main signal remains raw-exit divergence, first-divergence position, raw-exit exact match, top-1 agreement, and penultimate-vs-earlier-layer behavior, not composed exact match.
 
 ### Qwen3-30B-A3B (Sparse MoE, validated baseline)
 
@@ -474,6 +489,7 @@ Use `--quantize none` here. Do not reuse the BitsAndBytes `4bit` example path fo
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model openai/gpt-oss-20b \
   --quantize none \
+  --exit-layers 21 22 \
   --debug-trace \
   --prompt-id P2 \
   --max-new-tokens 16 \
@@ -482,6 +498,7 @@ python scripts/track_a_gpu/transcender_gpu_reproduction.py \
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model openai/gpt-oss-20b \
   --quantize none \
+  --exit-layers 21 22 \
   --max-new-tokens 48 \
   --output artifacts/track_a_gpu/gpt_oss_20b_gpu_reproduction_n63.json
 
@@ -495,6 +512,7 @@ python scripts/track_a_gpu/summarize_benchmark.py \
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model mistralai/Mixtral-8x7B-Instruct-v0.1 \
   --quantize 4bit \
+  --exit-layers 29 30 \
   --debug-trace \
   --prompt-id P2 \
   --max-new-tokens 16 \
@@ -503,6 +521,7 @@ python scripts/track_a_gpu/transcender_gpu_reproduction.py \
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model mistralai/Mixtral-8x7B-Instruct-v0.1 \
   --quantize 4bit \
+  --exit-layers 29 30 \
   --max-new-tokens 48 \
   --output artifacts/track_a_gpu/mixtral_8x7b_gpu_reproduction_n63.json
 
@@ -516,6 +535,7 @@ python scripts/track_a_gpu/summarize_benchmark.py \
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model mistralai/Mistral-7B-Instruct-v0.3 \
   --quantize 4bit \
+  --exit-layers 29 30 \
   --debug-trace \
   --prompt-id P2 \
   --max-new-tokens 16 \
@@ -524,6 +544,7 @@ python scripts/track_a_gpu/transcender_gpu_reproduction.py \
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model mistralai/Mistral-7B-Instruct-v0.3 \
   --quantize 4bit \
+  --exit-layers 29 30 \
   --max-new-tokens 48 \
   --output artifacts/track_a_gpu/mistral_7b_gpu_reproduction_n63.json
 
@@ -534,29 +555,36 @@ python scripts/track_a_gpu/summarize_benchmark.py \
 ### Other Dense Controls
 
 - `meta-llama/Llama-3.1-8B-Instruct` should follow the same command pattern if you have access to the gated model.
+- At the moment, Llama is still blocked by gated Hugging Face access. Do not describe it as empirically validated on this GPU Track A path until the checkpoint can actually be downloaded and run.
 - Gemma 3 is a dense family, and the useful comparison axis here is checkpoint scale:
   - `google/gemma-3-4b-it` as a small dense control
   - `google/gemma-3-12b-it` as a mid-scale dense control
   - `google/gemma-3-27b-it` as a large dense control
 - Mistral is still the cleaner first dense control because it avoids Gemma-family vocabulary and checkpoint-scaling confounds on the first pass.
-- Gemma 3 becomes useful after that as a size-aware dense-family comparison axis rather than merely "another supported family."
+- Current Gemma 3 checkpoint behavior is not uniform: `4B` is decent, `12B` is weak, and `27B` is strong. That is useful dense-family evidence, but it is still checkpoint-specific rather than a universal dense-family law.
 - Older Gemma and Gemma2 instruction checkpoints are also supported by the explicit manual path, but they are lower-priority follow-up controls here.
 - Do not point this script at multimodal Gemma 3 checkpoints. The manual-reference path only supports text causal-LM checkpoints.
 
 ### Gemma 3 4B-IT (Dense control, text only)
 
+Use `--quantize none` here. The verified numerically sane path for `google/gemma-3-4b-it` is the non-BitsAndBytes load with explicit `--exit-layers 31 32`.
+
 ```bash
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model google/gemma-3-4b-it \
-  --quantize 4bit \
+  --device cuda \
+  --quantize none \
+  --exit-layers 31 32 \
   --debug-trace \
   --prompt-id P2 \
-  --max-new-tokens 16 \
+  --max-new-tokens 32 \
   --output artifacts/track_a_gpu/gemma3_4b_trace_p2.json
 
 python scripts/track_a_gpu/transcender_gpu_reproduction.py \
   --model google/gemma-3-4b-it \
-  --quantize 4bit \
+  --device cuda \
+  --quantize none \
+  --exit-layers 31 32 \
   --max-new-tokens 48 \
   --output artifacts/track_a_gpu/gemma3_4b_gpu_reproduction_n63.json
 
@@ -566,10 +594,51 @@ python scripts/track_a_gpu/summarize_benchmark.py \
 
 ### Gemma 3 12B-IT And 27B-IT (Dense controls, text only)
 
-These follow the same command pattern as `google/gemma-3-4b-it`, but they should be treated as separate checkpoints with different memory and runtime costs. They are code-path supported dense-control candidates, not checkpoints that have already been run in this repo.
+These are now empirically run on the GPU manual-reference path, but they should still be treated as separate checkpoints with different memory/runtime costs and different strength of evidence.
 
-- `google/gemma-3-12b-it`
-- `google/gemma-3-27b-it`
+```bash
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model google/gemma-3-12b-it \
+  --device cuda \
+  --quantize none \
+  --exit-layers 41 42 \
+  --debug-trace \
+  --prompt-id P2 \
+  --max-new-tokens 32 \
+  --output artifacts/track_a_gpu/gemma3_12b_trace_p2.json
+
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model google/gemma-3-12b-it \
+  --device cuda \
+  --quantize none \
+  --exit-layers 41 42 \
+  --max-new-tokens 48 \
+  --output artifacts/track_a_gpu/gemma3_12b_gpu_reproduction_n63.json
+
+python scripts/track_a_gpu/summarize_benchmark.py \
+  artifacts/track_a_gpu/gemma3_12b_gpu_reproduction_n63.json
+
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model google/gemma-3-27b-it \
+  --device cuda \
+  --quantize none \
+  --exit-layers 59 60 \
+  --debug-trace \
+  --prompt-id P2 \
+  --max-new-tokens 32 \
+  --output artifacts/track_a_gpu/gemma3_27b_trace_p2.json
+
+python scripts/track_a_gpu/transcender_gpu_reproduction.py \
+  --model google/gemma-3-27b-it \
+  --device cuda \
+  --quantize none \
+  --exit-layers 59 60 \
+  --max-new-tokens 48 \
+  --output artifacts/track_a_gpu/gemma3_27b_gpu_reproduction_n63.json
+
+python scripts/track_a_gpu/summarize_benchmark.py \
+  artifacts/track_a_gpu/gemma3_27b_gpu_reproduction_n63.json
+```
 
 ## Download the Artifact
 

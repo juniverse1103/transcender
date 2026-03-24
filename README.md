@@ -162,18 +162,19 @@ python scripts/track_a/transcender_server.py --model /path/to/gpt-oss-20b --port
 - Validation status:
   - empirically validated on this GPU path
   - code-path supported, pending real runs
+  - blocked by model access
 
 **Architecture + validation status**
 - Sparse MoE:
   - `Qwen/Qwen3-30B-A3B` — empirically validated GPU baseline
-  - `openai/gpt-oss-20b` — code-path supported, pending real run
-  - `mistralai/Mixtral-8x7B-Instruct-v0.1` — code-path supported, pending real run
+  - `openai/gpt-oss-20b` — empirically validated sparse external-validity result
+  - `mistralai/Mixtral-8x7B-Instruct-v0.1` — empirically validated sparse-MoE extension
 - Dense:
-  - `mistralai/Mistral-7B-Instruct-v0.3` — code-path supported, pending real run
-  - `meta-llama/Llama-3.1-8B-Instruct` — code-path supported, pending real run
-  - `google/gemma-3-4b-it` — code-path supported, pending real run
-  - `google/gemma-3-12b-it` — code-path supported, pending real run
-  - `google/gemma-3-27b-it` — code-path supported, pending real run
+  - `mistralai/Mistral-7B-Instruct-v0.3` — empirically validated dense control
+  - `meta-llama/Llama-3.1-8B-Instruct` — blocked by gated Hugging Face access; not run on this GPU Track A path yet
+  - `google/gemma-3-4b-it` — empirically validated dense-family supporting evidence
+  - `google/gemma-3-12b-it` — empirically validated but materially weaker dense-family evidence
+  - `google/gemma-3-27b-it` — empirically validated strongest current Gemma 3 result
   - older Gemma / Gemma2 text checkpoints — code-path supported, pending real runs
 
 Gemma 3 is a dense family, not a sparse-MoE family. In this GPU validation flow it should be discussed at the checkpoint level, especially `4B`, `12B`, and `27B`, because those sizes imply different memory/runtime costs and make Gemma 3 a size-aware dense comparison axis rather than one undifferentiated model. Smaller `270M` and `1B` Gemma 3 text checkpoints exist, but they are not the main recommended dense-control targets here unless there is a specific reason to probe very small-scale behavior.
@@ -181,6 +182,17 @@ Gemma 3 is a dense family, not a sparse-MoE family. In this GPU validation flow 
 The explicit manual path supports Qwen3/Qwen2-MoE, GPT-OSS, Mixtral, Llama, Mistral, Gemma, Gemma2, and Gemma 3 text checkpoints, with fail-fast checks for unsupported architectures. Multimodal Gemma 3 checkpoints are intentionally out of scope for this path.
 
 For command examples, note that `openai/gpt-oss-20b` should currently be run with `--quantize none`, not the BitsAndBytes `4bit` path used in the other example commands.
+
+**Currently verified GPU manual-reference outcomes**
+- `openai/gpt-oss-20b` with `--quantize none --exit-layers 21 22`: sane trace; N=63 raw-exit exact match is `0.840` at `L21` and `0.885` at `L22`; `L22` is at least as strong as `L21` on `55/63` prompts and strictly better on `53/63`. This is the canonical sparse supporting evidence on this GPU path.
+- `mistralai/Mixtral-8x7B-Instruct-v0.1` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match is `0.667` at `L29` and `0.837` at `L30`; `L30` beats `L29` on all `63/63` scored prompts. This is strong sparse-family generalization with a very clean penultimate advantage.
+- `mistralai/Mistral-7B-Instruct-v0.3` with `--quantize 4bit --exit-layers 29 30`: sane trace; N=63 raw-exit exact match is `0.715` at `L29` and `0.864` at `L30`; `L30` is at least as strong on `63/63` prompts and strictly better on `62/63`. This is the strongest first dense control on the GPU path so far.
+- `google/gemma-3-4b-it` with `--device cuda --quantize none --exit-layers 31 32`: the current result is numerically sane and supersedes the earlier invalid all-`1.000` run; the verified `P2` trace has finite hidden states and logits throughout, and the N=63 benchmark gives raw-exit exact match `0.833` at `L31` and `0.900` at `L32`, with `L32` at least as strong on `58/63` prompts and strictly better on `54/63`. This is genuine dense-family supporting evidence under the GPU manual-reference path, not yet a size-scaling conclusion.
+- `google/gemma-3-12b-it` with `--device cuda --quantize none --exit-layers 41 42`: the trace is sane and the logits are finite, but the benchmark evidence is materially weaker than the 4B and 27B checkpoints. N=63 raw-exit exact match is `0.528` at `L41` and `0.562` at `L42`, with `L42` at least as strong on `54/63` prompts and strictly better on `46/63`. This is valid checkpoint-specific evidence, but not especially strong dense-family support on its own.
+- `google/gemma-3-27b-it` with `--device cuda --quantize none --exit-layers 59 60`: the trace is sane, the logits are finite, and the benchmark is the strongest current Gemma 3 result. N=63 raw-exit exact match is `0.813` at `L59` and `0.932` at `L60`, with `L60` at least as strong on `63/63` prompts and strictly better on `63/63`. This is the cleanest Gemma 3 supporting evidence in the current GPU Track A set.
+- `meta-llama/Llama-3.1-8B-Instruct` has not been run on this GPU Track A path yet. The model remains blocked by gated Hugging Face access, so it should not be described as empirically validated here.
+
+Taken together, the current dense-side GPU evidence is checkpoint-specific rather than a universal dense-family law: Gemma 3 `4B` is decent, `12B` is weak, and `27B` is strong; Mistral 7B remains the clean first dense control; Llama is still pending because of access rather than because the code path is missing.
 
 **Metric semantics**
 - `raw_exit_*`: raw intermediate-layer candidate tokens compared against full depth under shared full-depth context. This is the primary diagnostic metric for whether the tested exit layers genuinely diverge from the final layer.
