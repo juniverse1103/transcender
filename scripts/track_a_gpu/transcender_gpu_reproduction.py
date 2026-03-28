@@ -34,6 +34,19 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 import torch
+
+# torch.accelerator was introduced in torch ~2.6. Transformers 5.x MXFP4
+# quantizer calls torch.accelerator.current_accelerator() unconditionally.
+# Shim it for torch 2.5.x so the call doesn't crash before we reach our code.
+if not hasattr(torch, "accelerator"):
+    class _CompatAccelerator:
+        @staticmethod
+        def current_accelerator():
+            if torch.cuda.is_available():
+                return torch.device("cuda")
+            return None
+    torch.accelerator = _CompatAccelerator()  # type: ignore[attr-defined]
+
 from transformers.cache_utils import DynamicCache
 
 # transformers.masking_utils was introduced in ~4.48 (Gemma 3 era).
