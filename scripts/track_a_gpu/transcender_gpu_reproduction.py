@@ -193,6 +193,14 @@ MODEL_REFERENCE_BY_SUBSTRING = {
             "L21": {"exact_match": 0.703, "perfect": 27, "total": 63},
         },
     },
+    "llama-3.1-8b": {
+        "reference_type": "gpu_first_run",
+        "layers": {},  # no MLX baseline — GPU run establishes the reference
+    },
+    "llama-3.3-70b": {
+        "reference_type": "gpu_first_run",
+        "layers": {},  # no MLX baseline — GPU run establishes the reference
+    },
 }
 
 
